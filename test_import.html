@@ -1,0 +1,19 @@
+<html lang="">
+<script>
+    let importObject = {
+        console: {
+            log: function(arg) {
+                console.log(arg);
+            }
+        }
+    };
+
+    fetch('build/test_import.wasm').then(response =>
+        response.arrayBuffer()
+    ).then(bytes =>
+        WebAssembly.instantiate(bytes, importObject)
+    ).then(obj => {
+        console.log(obj.instance.exports.logIt());
+    });
+</script>
+</html>

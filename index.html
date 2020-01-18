@@ -1,12 +1,12 @@
-<html>
+<html lang="">
 <script>
     let importObject;
-    fetch('build/test.wasm').then(response =>
+    fetch('build/test_add_call.wasm').then(response =>
         response.arrayBuffer()
     ).then(bytes =>
         WebAssembly.instantiate(bytes, importObject)
     ).then(obj => {
-        console.log(obj.instance.exports.add(1, 2));  // "3"
+        console.log(obj.instance.exports.getAnswerPlus1());  // "43"
     });
 </script>
 </html>

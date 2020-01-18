@@ -1,4 +1,7 @@
 WABT = ~/git/wabt
 
-test.wasm: test.wat
-	$(WABT)/bin/wat2wasm test.wat -o ../build/test.wasm
+all: test_add.wasm test_add_call.wasm test_import.wasm test_memory.wasm\
+	test_shared0.wasm test_shared1.wasm test_table.wasm
+
+%.wasm: %.wat
+	$(WABT)/bin/wat2wasm $< -o ../build/$@
