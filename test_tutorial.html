@@ -1,0 +1,126 @@
+<html lang="">
+<head>
+    <title>Web Assembly Tutorial Tests</title>
+<script>
+    function test_add_call() {
+        let importObject;
+        fetch('build/test/test_add_call.wasm').then(response =>
+            response.arrayBuffer()
+        ).then(bytes =>
+            WebAssembly.instantiate(bytes, importObject)
+        ).then(obj => {
+            console.log(obj.instance.exports.getAnswerPlus1());
+            let value = obj.instance.exports.getAnswerPlus1();
+            display_results('add_call', value);  // "43"
+        });
+    }
+
+    function test_import() {
+        let importObject = {
+            console: {
+                log: function(arg) {
+                    display_results('import', arg);
+                }
+            }
+        };
+
+        fetch('build/test/test_import.wasm').then(response =>
+            response.arrayBuffer()
+        ).then(bytes =>
+            WebAssembly.instantiate(bytes, importObject)
+        ).then(obj => {
+            obj.instance.exports.logIt();
+        });
+    }
+
+    function test_memory() {
+        function consoleLogString(offset, length) {
+            var bytes = new Uint8Array(memory.buffer, offset, length);
+            var string = new TextDecoder('utf8').decode(bytes);
+            display_results('memory', string);
+        }
+
+        let memory = new WebAssembly.Memory({initial:1});
+
+        let importObject = { console: { log: consoleLogString }, js: { mem: memory } };
+
+        fetch('build/test/test_memory.wasm').then(response =>
+            response.arrayBuffer()
+        ).then(bytes =>
+            WebAssembly.instantiate(bytes, importObject)
+        ).then(obj => {
+            obj.instance.exports.writeHi();
+        });
+    }
+
+    function test_shared() {
+        var importObject = {
+            js: {
+                memory : new WebAssembly.Memory({ initial: 1 }),
+                table : new WebAssembly.Table({ initial: 1, element: "anyfunc" })
+            }
+        };
+
+        Promise.all([
+            fetch('build/test/test_shared0.wasm').then(response =>
+                response.arrayBuffer()
+            ).then(bytes =>
+                WebAssembly.instantiate(bytes, importObject)
+            ),
+            fetch('build/test/test_shared1.wasm').then(response =>
+                response.arrayBuffer()
+            ).then(bytes =>
+                WebAssembly.instantiate(bytes, importObject)
+            )]).then(function(results) {
+            display_results('shared', results[1].instance.exports.doIt());  // prints 42
+        });
+
+    }
+
+    function test_table() {
+        let importObject;
+        fetch('build/test/test_table.wasm').then(response =>
+            response.arrayBuffer()
+        ).then(bytes =>
+            WebAssembly.instantiate(bytes, importObject)
+        ).then(obj => {
+            let errorResult = '';
+            try {
+                obj.instance.exports.callByIndex(2); // returns an error, because there is no index position 2 in the table
+            } catch(error) {
+                errorResult = error;
+            }
+            display_results('table', obj.instance.exports.callByIndex(0) + ', ' + obj.instance.exports.callByIndex(1) + ', ' + errorResult); // returns 42, 13, <error>
+        });
+    }
+
+    function display_results(test, results) {
+        let element1 = document.getElementById('testName');
+        element1.innerText = 'Test: ' + test;
+        let element2 = document.getElementById('result');
+        element2.innerText = results;
+    }
+</script>
+</head>
+<body>
+<div id="tests">
+    <ul>
+        <li><button onclick="test_add_call();">test_add_call</button></li>
+        <li><button onclick="test_import();">test_import</button></li>
+        <li><button onclick="test_memory();">test_memory</button></li>
+        <li><button onclick="test_shared();">test_shared</button></li>
+        <li><button onclick="test_table();">test_table</button></li>
+    </ul>
+</div>
+<div id="display">
+    <div id="testName">
+
+    </div>
+    <br>
+    <br>
+    <div id="result">
+
+    </div>
+</div>
+</body>
+</html>
