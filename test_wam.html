@@ -1,0 +1,71 @@
+<html lang="">
+<head>
+    <title>Web Assembly Wam Tests</title>
+<script>
+    let memory = new WebAssembly.Memory({initial: 10});
+
+    let importObject = {js: {mem: memory}};
+
+    function test_shift_tag() {
+        fetch('build/wam/l0_put_structure.wasm').then(response =>
+            response.arrayBuffer()
+        ).then(bytes =>
+            WebAssembly.instantiate(bytes, importObject)
+        ).then(obj => {
+            let value = obj.instance.exports.shiftTag(1);
+            display_results('shift_tag', value);
+        });
+    }
+
+    function test_tag_integer() {
+        fetch('build/wam/l0_put_structure.wasm').then(response =>
+            response.arrayBuffer()
+        ).then(bytes =>
+            WebAssembly.instantiate(bytes, importObject)
+        ).then(obj => {
+            let value = obj.instance.exports.tagInteger(10);
+            display_results('tag_integer', value);
+        });
+    }
+
+    function test_store_structure() {
+        fetch('build/wam/l0_put_structure.wasm').then(response =>
+            response.arrayBuffer()
+        ).then(bytes =>
+            WebAssembly.instantiate(bytes, importObject)
+        ).then(obj => {
+            obj.instance.exports.storeStructureMem(3);
+            var i32 = new Uint32Array(memory.buffer, 0, 16);
+
+            display_results('store_structure_mem @ slot 3', JSON.stringify(i32));
+        });
+    }
+
+    function display_results(test, results) {
+        let element1 = document.getElementById('testName');
+        element1.innerText = 'Test: ' + test;
+        let element2 = document.getElementById('result');
+        element2.innerText = results;
+    }
+</script>
+</head>
+<body>
+<div id="tests">
+    <ul>
+        <li><button onclick="test_shift_tag();">test_shift_tag</button></li>
+        <li><button onclick="test_tag_integer();">test_tag_integer</button></li>
+        <li><button onclick="test_store_structure();">test_store_structure</button></li>
+    </ul>
+</div>
+<div id="display">
+    <div id="testName">
+
+    </div>
+    <br>
+    <br>
+    <div id="result">
+
+    </div>
+</div>
+</body>
+</html>
