@@ -2,9 +2,10 @@
 <head>
     <title>Web Assembly Wam Tests</title>
 <script>
+    let table = new WebAssembly.Table({initial: 100, element: "anyfunc"});
     let memory = new WebAssembly.Memory({initial: 10});
 
-    let importObject = {js: {mem: memory}};
+    let importObject = {js: {mem: memory, table: table}};
 
     function test_shift_tag() {
         fetch('build/wam/l0_put_structure.wasm').then(response =>
@@ -34,10 +35,24 @@
         ).then(bytes =>
             WebAssembly.instantiate(bytes, importObject)
         ).then(obj => {
-            obj.instance.exports.storeStructureMem(3);
+            obj.instance.exports.setH(3);
+            obj.instance.exports.storeStructureMem();
             var i32 = new Uint32Array(memory.buffer, 0, 16);
 
             display_results('store_structure_mem @ slot 3', JSON.stringify(i32));
+        });
+    }
+
+    function test_query_2_3() {
+        fetch('build/wam/l0_put_structure.wasm').then(response =>
+            response.arrayBuffer()
+        ).then(bytes =>
+            WebAssembly.instantiate(bytes, importObject)
+        ).then(obj => {
+            obj.instance.exports.query2_3();
+            var i32 = new Uint32Array(memory.buffer, 0, 16);
+
+            display_results('query_2_3', JSON.stringify(i32));
         });
     }
 
@@ -55,6 +70,7 @@
         <li><button onclick="test_shift_tag();">test_shift_tag</button></li>
         <li><button onclick="test_tag_integer();">test_tag_integer</button></li>
         <li><button onclick="test_store_structure();">test_store_structure</button></li>
+        <li><button onclick="test_query_2_3();">test_query_2_3</button></li>
     </ul>
 </div>
 <div id="display">

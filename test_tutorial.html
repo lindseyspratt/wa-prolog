@@ -33,6 +33,31 @@
         });
     }
 
+    var globalCounter = 0;
+
+    function test_import_result() {
+        let importObject = {
+                console: {
+                    log: function (arg) {
+                        display_results('import_result', arg);
+                    }
+                },
+            js: {increment: function (arg) {
+                    globalCounter += arg;
+                    return globalCounter;
+                }}
+        };
+
+        fetch('build/test/test_import_result.wasm').then(response =>
+            response.arrayBuffer()
+        ).then(bytes =>
+            WebAssembly.instantiate(bytes, importObject)
+        ).then(obj => {
+            obj.instance.exports.increment();
+            obj.instance.exports.logIt();
+        });
+    }
+
     function test_memory() {
         function consoleLogString(offset, length) {
             var bytes = new Uint8Array(memory.buffer, offset, length);
@@ -107,6 +132,7 @@
     <ul>
         <li><button onclick="test_add_call();">test_add_call</button></li>
         <li><button onclick="test_import();">test_import</button></li>
+        <li><button onclick="test_import_result();">test_import_result</button></li>
         <li><button onclick="test_memory();">test_memory</button></li>
         <li><button onclick="test_shared();">test_shared</button></li>
         <li><button onclick="test_table();">test_table</button></li>
