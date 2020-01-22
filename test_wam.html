@@ -3,9 +3,13 @@
     <title>Web Assembly Wam Tests</title>
 <script>
     let table = new WebAssembly.Table({initial: 100, element: "anyfunc"});
-    let memory = new WebAssembly.Memory({initial: 10});
+    let memory = new WebAssembly.Memory({initial: 1});
 
-    let importObject = {js: {mem: memory, table: table}};
+    let importObject = {js:
+            {mem: memory,
+                table: table,
+                maxRegister: 256,
+                heapStart: 257*4}};
 
     function test_shift_tag() {
         fetch('build/wam/l0_put_structure.wasm').then(response =>
@@ -37,7 +41,7 @@
         ).then(obj => {
             obj.instance.exports.setH(3);
             obj.instance.exports.storeStructureMem();
-            var i32 = new Uint32Array(memory.buffer, 0, 16);
+            var i32 = new Uint32Array(memory.buffer, 257*4, 16);
 
             display_results('store_structure_mem @ slot 3', JSON.stringify(i32));
         });
@@ -50,7 +54,7 @@
             WebAssembly.instantiate(bytes, importObject)
         ).then(obj => {
             obj.instance.exports.query2_3();
-            var i32 = new Uint32Array(memory.buffer, 0, 16);
+            var i32 = new Uint32Array(memory.buffer, 257*4, 16);
 
             display_results('query_2_3', JSON.stringify(i32));
         });

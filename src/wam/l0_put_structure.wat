@@ -1,14 +1,14 @@
+(;
+Memory layout: first $maxRegister*4 slots hold the registers, followed by the 'heap' slots.
+Each register is one i32 word, which is four 'byte' slots of memory.
+Each heap slot is one i32 word, which is four 'byte' slots of memory.
+
+;)
 (module
     (import "js" "mem" (memory 1))
     (import "js" "table" (table 1 funcref))
-    (elem (i32.const 1)
-     $loadToRegister1 $loadToRegister2 $loadToRegister3 $loadToRegister4 $loadToRegister5
-     $loadFromRegister1 $loadFromRegister3 $loadFromRegister3 $loadFromRegister5 $loadFromRegister5
-    )
-    (type $i32 (func (param i32)))
-    (type $void_to_i32 (func (result i32)))
-
-    (global $LOAD_FROM_REGISTER_OFFSET i32 (i32.const 5)) ;; 5 registers, X1-X5
+    (import "js" "maxRegister" (global $maxRegister i32))
+    (import "js" "heapStart" (global $heapStart i32))
 
     (global $TAG_REF i32 (i32.const 0))
     (global $TAG_STR i32 (i32.const 1))
@@ -18,11 +18,6 @@
     (global $TAG_FLT i32 (i32.const 5))
 
     (global $H (mut i32) (i32.const 0))
-    (global $X1 (mut i32) (i32.const 0))
-    (global $X2 (mut i32) (i32.const 0))
-    (global $X3 (mut i32) (i32.const 0))
-    (global $X4 (mut i32) (i32.const 0))
-    (global $X5 (mut i32) (i32.const 0))
 
     (func $getH (result i32)
         global.get $H
@@ -63,6 +58,12 @@
         i32.const 4
         i32.mul
     )
+    (func $wordToHeapByteOffset (param $val i32) (result i32)
+        local.get $val
+        call $wordToByteOffset
+        global.get $heapStart
+        i32.add
+    )
     (func $increment (param $val i32) (result i32)
         i32.const 1
         local.get $val
@@ -77,7 +78,7 @@
     )
     (func $storeStructureMem
         global.get $H
-        call $wordToByteOffset
+        call $wordToHeapByteOffset
 
         global.get $H
         call $increment
@@ -89,20 +90,34 @@
     (func $storeIndicatorMem (param $fn i32)
         global.get $H
         call $increment
-        call $wordToByteOffset
+        call $wordToHeapByteOffset ;; 4 * ($H + 1). ($H + 1) is the 'word' (i32) offset in memory and 4 * ($H + 1) is the byte offset.
 
         local.get $fn
 
-        i32.store ;; store f/n at byte (H+1)*4
+        i32.store ;; store 4 bytes (for i32 type) value for 'f/n' starting at byte (H+1)*4
     )
     (func $storeReferenceMem
         global.get $H
-        call $wordToByteOffset
+        call $wordToHeapByteOffset
 
         global.get $H
         call $tagReference
 
         i32.store ;; store <REF, H> at byte H*4
+    )
+    (func $loadFromRegister (param $reg i32) (result i32)
+        local.get $reg
+        call $wordToByteOffset
+        i32.load
+    )
+
+    (func $storeToRegister (param $reg i32) (param $val i32)
+        local.get $reg
+        call $wordToByteOffset
+
+        local.get $val
+
+        i32.store
     )
     (func $storeRegisterToHeap (param $val i32)
         global.get $H
@@ -110,58 +125,11 @@
         call $loadFromRegister
         i32.store
     )
-    (func $loadFromRegister1 (result i32)
-        global.get $X1
-    )
-    (func $loadFromRegister2 (result i32)
-        global.get $X2
-    )
-    (func $loadFromRegister3 (result i32)
-        global.get $X4
-    )
-    (func $loadFromRegister4 (result i32)
-        global.get $X4
-    )
-    (func $loadFromRegister5 (result i32)
-        global.get $X5
-    )
-    (func $loadFromRegister (param $reg i32) (result i32)
-        local.get $reg
-        global.get $LOAD_FROM_REGISTER_OFFSET ;; skip the $loadToRegisterI functions in the table.
-        i32.add
-
-        call_indirect (type $void_to_i32)
-    )
     (func $loadHeapToRegister (param $val i32)
         global.get $H
         i32.load
         local.get $val
-        call $loadToRegister
-    )
-    (func $loadToRegister1 (param $val i32)
-        local.get $val
-        global.set $X1
-    )
-    (func $loadToRegister2 (param $val i32)
-        local.get $val
-        global.set $X2
-    )
-    (func $loadToRegister3 (param $val i32)
-        local.get $val
-        global.set $X3
-    )
-    (func $loadToRegister4 (param $val i32)
-        local.get $val
-        global.set $X4
-    )
-    (func $loadToRegister5 (param $val i32)
-        local.get $val
-        global.set $X5
-    )
-    (func $loadToRegister (param $reg i32) (param $val i32)
-        local.get $reg
-        local.get $val
-        call_indirect (type $i32)
+        call $storeToRegister
     )
     (func $putStructure (param $indicator i32) (param $reg i32)
         call $storeStructureMem
