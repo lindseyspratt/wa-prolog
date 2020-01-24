@@ -1,6 +1,6 @@
 WABT = ~/git/wabt
 
-all: l0_put_structure.wasm
+all: language0.wasm
 
 %.wasm: %.wat
 	mkdir -p ../../build/wam;$(WABT)/bin/wat2wasm $< -o ../../build/wam/$@
