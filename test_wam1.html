@@ -1,0 +1,137 @@
+<html lang="">
+<head>
+    <title>Web Assembly Wam Tests</title>
+<script>
+    let table = new WebAssembly.Table({initial: 100, element: "anyfunc"});
+    let memory = new WebAssembly.Memory({initial: 1});
+    let atable = [];
+    let code = [];
+    let indicators = [];
+
+    const MAX_REGISTER = 256;
+    const PDL_START = (MAX_REGISTER+1) * 4;
+    const MAX_PDL = 256;
+    const MIN_HEAP = MAX_REGISTER + MAX_PDL + 1;
+    const HEAP_START = (MIN_HEAP*4);
+
+    let importObject = {js:
+            {mem: memory,
+                table: table,
+                maxRegister: MAX_REGISTER,
+                pdlStart: PDL_START,
+                maxPDL: MAX_PDL,
+                minHeap: MIN_HEAP,
+                heapStart: HEAP_START,
+            lookupAtom: lookupAtomWA,
+            getCode: getCodeWA,
+            getIndicatorArity: getIndicatorArityWA,
+            'indicator_a/0':lookupIndicator("a", 0),
+            'indicator_f/1':lookupIndicator("f", 1),
+            'indicator_h/2':lookupIndicator("h", 2),
+            'indicator_p/3':lookupIndicator("p", 3)}};
+
+    function lookupAtomWA(start, length){
+        var bytes = new Uint8Array(memory.buffer, start, length);
+        var string = new TextDecoder('utf8').decode(bytes);
+        return lookup_atom(string);
+    }
+
+    function getCodeWA(codeOfst) {
+        return code[codeOfst];
+    }
+
+    function getIndicatorArityWA(indicator) {
+        return indicators[indicator][1];
+    }
+
+    function lookup_atom(name)
+    {
+        if(typeof name !== 'string') {
+            throw 'invalid lookup_atom. name must have type of string, but is ' + typeof name + '. name = ' + name;
+        }
+
+        var i;
+        for (i = 0; i < atable.length; i++)
+        {
+            if (atable[i] === name)
+                return i;
+        }
+        i = atable.length;
+        atable[i] = name;
+        return i;
+    }
+
+    function lookupIndicator(name, arity) {
+        let nameID = lookup_atom(name);
+
+        let i;
+        for (i = 0; i < indicators.length; i++) {
+            if (indicators[i][0] === nameID
+                && indicators[i][1] === arity) {
+                return i;
+            }
+        }
+        i = indicators.length;
+        indicators[i] = [nameID, arity];
+        return i;
+    }
+    function test_query_2_3() {
+        fetch('build/wam/language0.wasm').then(response =>
+            response.arrayBuffer()
+        ).then(bytes =>
+            WebAssembly.instantiate(bytes, importObject)
+        ).then(obj => {
+            let i32Initial = new Uint32Array(memory.buffer);
+            for(let i = 0; i < MIN_HEAP + 100;i++) {
+                i32Initial[i] = 0;
+            }
+            obj.instance.exports.query2_3();
+            let i32 = new Uint32Array(memory.buffer, HEAP_START, 16);
+
+            display_results('query_2_3', JSON.stringify(i32));
+        });
+    }
+
+    function test_program_2_4() {
+        fetch('build/wam/language0.wasm').then(response =>
+            response.arrayBuffer()
+        ).then(bytes =>
+            WebAssembly.instantiate(bytes, importObject)
+        ).then(obj => {
+            let i32Initial = new Uint32Array(memory.buffer);
+            for(let i = 0; i < MIN_HEAP + 100;i++) {
+                i32Initial[i] = 0;
+            }
+            obj.instance.exports.program2_4();
+            let i32 = new Uint32Array(memory.buffer, HEAP_START, 16);
+
+            display_results('program2_4', JSON.stringify(i32));
+        });
+    }
+    function display_results(test, results) {
+        let element1 = document.getElementById('testName');
+        element1.innerText = 'Test: ' + test;
+        let element2 = document.getElementById('result');
+        element2.innerText = results;
+    }
+</script>
+</head>
+<body>
+<div id="tests">
+    <ul>
+        <li><button onclick="test_query_2_3();">test_query_2_3</button></li>
+        <li><button onclick="test_program_2_4();">test_program_2_4</button></li>
+    </ul>
+</div>
+<div id="display">
+    <div id="testName">
+
+    </div>
+    <br>
+    <br>
+    <div id="result">
+
+    </div>
+</div>
+</body>
+</html>
