@@ -25,7 +25,7 @@ Code: the word code for WAM instructions is held in the host environment. The (c
 ;)
 (module
     (import "js" "mem" (memory 1))
-    (import "js" "table" (table 1 funcref))
+    (import "js" "table" (table 2 funcref))
     (import "js" "maxRegister" (global $maxRegister i32))
     (import "js" "pdlStart" (global $pdlStart i32))
     (import "js" "maxPDL" (global $maxPDL i32))
@@ -38,8 +38,6 @@ Code: the word code for WAM instructions is held in the host environment. The (c
     (import "js" "indicator_f/1" (global $predF_1 i32))
     (import "js" "indicator_h/2" (global $predH_2 i32))
     (import "js" "indicator_p/3" (global $predP_3 i32))
-
-  (table 2 funcref)
 
     (func $predP_3
         (call $program2_10)
@@ -246,7 +244,7 @@ Code: the word code for WAM instructions is held in the host environment. The (c
     )
     (func $getStructure (param $indicator i32) (param $reg i32)
         (local $addr i32) (local $tag i32)
-        (local.set $addr (call $deref (call $loadFromRegister (local.get $reg))))
+        (local.set $addr (call $deref (local.get $reg)))
         (local.set $tag (call $termTag (local.get $addr)))
 
         (block
@@ -313,8 +311,8 @@ Code: the word code for WAM instructions is held in the host environment. The (c
         (global.set $S (call $increment (global.get $S)))
     )
 
-    (func $call (param $pred)
-        (call_indirect (type $void) $pred)
+    (func $call (param $pred i32)
+        (call_indirect (type $void) (local.get $pred))
     )
 
     (func $proceed)
@@ -327,6 +325,13 @@ Code: the word code for WAM instructions is held in the host environment. The (c
         (call $putStructure (global.get $predF_1) (i32.const 3))
         (call $setValue (i32.const 5))
         (call $call (global.get $predP_3Program))
+    )
+
+    (func $test
+        (call $setVariable (i32.const 1))
+        (call $setVariable (i32.const 2))
+        (call $setVariable (i32.const 3))
+        (call $program2_10)
     )
 
     (func $program2_10 ;; indirect target of $predP_3Program in table.
@@ -385,7 +390,7 @@ end unify
 
     (func $popPDL (result i32)
         (local $popResult i32)
-        (local.set $popResult (i32.load (global.get $PDL)))
+        (local.set $popResult (i32.load (call $wordToPDLByteOffset (global.get $PDL))))
 
         (global.set $PDL
             (i32.sub
@@ -575,4 +580,6 @@ end unify
     (export "getStructure" (func $getStructure))
     (export "addToH" (func $addToH))
     (export "bind" (func $bind))
+    (export "test" (func $test))
+    (export "program2_10" (func $program2_10))
 )

@@ -75,8 +75,25 @@
         indicators[i] = [nameID, arity];
         return i;
     }
-    function test_query_2_3() {
-        fetch('build/wam/language0.wasm').then(response =>
+    // function test_query_2_3() {
+    //     fetch('build/wam/language0.wasm').then(response =>
+    //         response.arrayBuffer()
+    //     ).then(bytes =>
+    //         WebAssembly.instantiate(bytes, importObject)
+    //     ).then(obj => {
+    //         let i32Initial = new Uint32Array(memory.buffer);
+    //         for(let i = 0; i < MIN_HEAP + 100;i++) {
+    //             i32Initial[i] = 0;
+    //         }
+    //         obj.instance.exports.query2_3();
+    //         let i32 = new Uint32Array(memory.buffer, HEAP_START, 16);
+    //
+    //         display_results('query_2_3', JSON.stringify(i32));
+    //     });
+    // }
+
+    function test_program_2_10() {
+        fetch('build/wam/language1.wasm').then(response =>
             response.arrayBuffer()
         ).then(bytes =>
             WebAssembly.instantiate(bytes, importObject)
@@ -85,42 +102,109 @@
             for(let i = 0; i < MIN_HEAP + 100;i++) {
                 i32Initial[i] = 0;
             }
-            obj.instance.exports.query2_3();
-            let i32 = new Uint32Array(memory.buffer, HEAP_START, 16);
+            obj.instance.exports.test();
+            let i32 = new Uint32Array(memory.buffer);
 
-            display_results('query_2_3', JSON.stringify(i32));
+            display_results('test program2_10', i32, MIN_HEAP, 16);
         });
     }
-
-    function test_program_2_4() {
-        fetch('build/wam/language0.wasm').then(response =>
-            response.arrayBuffer()
-        ).then(bytes =>
-            WebAssembly.instantiate(bytes, importObject)
-        ).then(obj => {
-            let i32Initial = new Uint32Array(memory.buffer);
-            for(let i = 0; i < MIN_HEAP + 100;i++) {
-                i32Initial[i] = 0;
-            }
-            obj.instance.exports.program2_4();
-            let i32 = new Uint32Array(memory.buffer, HEAP_START, 16);
-
-            display_results('program2_4', JSON.stringify(i32));
-        });
-    }
-    function display_results(test, results) {
+    function display_results(test, results, startingWord, length) {
         let element1 = document.getElementById('testName');
         element1.innerText = 'Test: ' + test;
         let element2 = document.getElementById('result');
-        element2.innerText = results;
+        element2.innerText = 'startingWord=' + startingWord + ': ' + JSON.stringify(results.slice(startingWord, startingWord+length));
+        let element3 = document.getElementById('resultInterpretation');
+        element3.innerText = interpret_memory(results, startingWord);
     }
+    function interpret_memory(results, startingWord) {
+        let output = '';
+        let i = startingWord;
+        while(i < results.length) {
+            let info = interpret_memory_item(results, i);
+            if(info.string === '_0') {
+                // fake variable reference
+                break;
+            }
+            output += i + ': ' + info.string + '; ';
+            i = info.nextItemOfst;
+        }
+        return output;
+    }
+    function interpret_memory_item(results, itemOfst) {
+        let word = results[itemOfst];
+        let tag = get_tag(word);
+        switch(tag) {
+            case TAG_REF: //var/REFerence
+            {
+                return {string: '_' + get_val(word), nextItemOfst: itemOfst+1}; // variable represented by '_N' where N is an arbitrary integer.
+            }
+            case TAG_STR: //STRucture
+            {
+                // STR value is address of indicator word, which is immediately followed by arity(indicator) argument words.
+                // Each argument word is a (tagged) term word
+                // structure = f(a1, ..., an)
+                // The indicator word may directly follow the 'structure' word, or it may be elsewhere.
+                // If it is directly after the structure word, then the intrepret_memory processing will skip
+                // to the end of the structure to continue to the next item.
+                let result = '';
+                let structureWordOfst = get_val(word);
+                result += '{' + structureWordOfst + '} ';
+                let indicator = results[structureWordOfst];
+                let pair = indicators[indicator];
+                let functorID = pair[0];
+                result += atable[functorID] + '(';
+                let arity = pair[1];
+                for(let argOfst = 0;argOfst < arity;argOfst++) {
+                    let argInfo = interpret_memory_item(results, structureWordOfst + 1 + argOfst);
+                    if(argOfst > 0) {
+                        result += ', ';
+                    }
+
+                    if(argInfo.nextItemOfst !== structureWordOfst + 1 + argOfst + 1) {
+                        throw 'invalid structure words';
+                    }
+
+                    result += argInfo.string;
+                }
+                result += ')';
+                let nextOfst = structureWordOfst === itemOfst+1 ? structureWordOfst + arity + 1 : itemOfst + 1;
+                return  {string: result, nextItemOfst: nextOfst}
+            }
+            default:
+            {
+                return {string: 'unrecognized: ' + word + ' (tag = ' + tag + ', val = ' + get_val(word) + ') at ' + itemOfst,
+                    nextItemOfst: itemOfst+1};
+            }
+        }
+    }
+    const READ = 0;
+    const WRITE = 1;
+    const TAG_REF = 0; // 0x00000000
+    const TAG_STR = 1; // 0x08000000
+    const TAG_LST = 2; // 0x10000000
+    const TAG_INT = 3; // 0x18000000
+    const TAG_ATM = 4; // 0x20000000
+    const TAG_FLT = 5; // 0x28000000
+    const WORD_BITS = 27;
+    const TAG_MASK = 7;
+
+    function get_tag(p)
+    {
+        // >>> is unsigned-right-shift. Nice.
+        return (p >>> WORD_BITS) & TAG_MASK;
+    }
+    function get_val(p)
+    {
+        return p & ((1 << WORD_BITS)-1);
+    }
+
 </script>
 </head>
 <body>
 <div id="tests">
     <ul>
-        <li><button onclick="test_query_2_3();">test_query_2_3</button></li>
-        <li><button onclick="test_program_2_4();">test_program_2_4</button></li>
+<!--        <li><button onclick="test_query_2_3();">test_query_2_3</button></li>-->
+        <li><button onclick="test_program_2_10();">test_program_2_4</button></li>
     </ul>
 </div>
 <div id="display">
@@ -130,6 +214,11 @@
     <br>
     <br>
     <div id="result">
+
+    </div>
+    <br>
+    <br>
+    <div id="resultInterpretation">
 
     </div>
 </div>
