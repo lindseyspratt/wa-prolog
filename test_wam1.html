@@ -75,22 +75,38 @@
         indicators[i] = [nameID, arity];
         return i;
     }
-    // function test_query_2_3() {
-    //     fetch('build/wam/language0.wasm').then(response =>
-    //         response.arrayBuffer()
-    //     ).then(bytes =>
-    //         WebAssembly.instantiate(bytes, importObject)
-    //     ).then(obj => {
-    //         let i32Initial = new Uint32Array(memory.buffer);
-    //         for(let i = 0; i < MIN_HEAP + 100;i++) {
-    //             i32Initial[i] = 0;
-    //         }
-    //         obj.instance.exports.query2_3();
-    //         let i32 = new Uint32Array(memory.buffer, HEAP_START, 16);
-    //
-    //         display_results('query_2_3', JSON.stringify(i32));
-    //     });
-    // }
+    function test_query_2_9() {
+        fetch('build/wam/language1.wasm').then(response =>
+            response.arrayBuffer()
+        ).then(bytes =>
+            WebAssembly.instantiate(bytes, importObject)
+        ).then(obj => {
+            let i32Initial = new Uint32Array(memory.buffer);
+            for(let i = 0; i < MIN_HEAP + 100;i++) {
+                i32Initial[i] = 0;
+            }
+            obj.instance.exports.query2_9();
+            let i32 = new Uint32Array(memory.buffer);
+
+            display_results('query2_9', i32, MIN_HEAP, 24);
+        });
+    }
+    function test_query_2_9_call_2_10() {
+        fetch('build/wam/language1.wasm').then(response =>
+            response.arrayBuffer()
+        ).then(bytes =>
+            WebAssembly.instantiate(bytes, importObject)
+        ).then(obj => {
+            let i32Initial = new Uint32Array(memory.buffer);
+            for(let i = 0; i < MIN_HEAP + 100;i++) {
+                i32Initial[i] = 0;
+            }
+            obj.instance.exports.query2_9call2_10();
+            let i32 = new Uint32Array(memory.buffer);
+
+            display_results('query2_9call2_10', i32, MIN_HEAP, 24);
+        });
+    }
 
     function test_program_2_10() {
         fetch('build/wam/language1.wasm').then(response =>
@@ -102,7 +118,7 @@
             for(let i = 0; i < MIN_HEAP + 100;i++) {
                 i32Initial[i] = 0;
             }
-            obj.instance.exports.test();
+            obj.instance.exports.test_program2_10();
             let i32 = new Uint32Array(memory.buffer);
 
             display_results('test program2_10', i32, MIN_HEAP, 16);
@@ -113,15 +129,17 @@
         element1.innerText = 'Test: ' + test;
         let element2 = document.getElementById('result');
         element2.innerText = 'startingWord=' + startingWord + ': ' + JSON.stringify(results.slice(startingWord, startingWord+length));
-        let element3 = document.getElementById('resultInterpretation');
-        element3.innerText = interpret_memory(results, startingWord);
+        let element3 = document.getElementById('resultInterpretationRegisters');
+        element3.innerText = 'registers: ' + interpret_memory(results, 1, 16);
+        let element4 = document.getElementById('resultInterpretationHeap');
+        element4.innerText = 'heap: ' + interpret_memory(results, startingWord);
     }
-    function interpret_memory(results, startingWord) {
+    function interpret_memory(results, startingWord, explicitLength) {
         let output = '';
         let i = startingWord;
         while(i < results.length) {
             let info = interpret_memory_item(results, i);
-            if(info.string === '_0') {
+            if((!explicitLength && info.string === '_0')||(explicitLength && i >= explicitLength)) {
                 // fake variable reference
                 break;
             }
@@ -136,7 +154,13 @@
         switch(tag) {
             case TAG_REF: //var/REFerence
             {
-                return {string: '_' + get_val(word), nextItemOfst: itemOfst+1}; // variable represented by '_N' where N is an arbitrary integer.
+                let string = '_' + get_val(word);
+                let term = results[get_val(word)];
+                if(term !== word) {
+                    let stringInfo = interpret_memory_item(results, get_val(word));
+                    string = stringInfo.string;
+                }
+                return {string: string, nextItemOfst: itemOfst+1}; // variable represented by '_N' where N is an arbitrary integer.
             }
             case TAG_STR: //STRucture
             {
@@ -188,6 +212,10 @@
     const WORD_BITS = 27;
     const TAG_MASK = 7;
 
+    function add_tag(value) {
+        return value ^ (TAG_STR << WORD_BITS)
+    }
+
     function get_tag(p)
     {
         // >>> is unsigned-right-shift. Nice.
@@ -203,7 +231,8 @@
 <body>
 <div id="tests">
     <ul>
-<!--        <li><button onclick="test_query_2_3();">test_query_2_3</button></li>-->
+        <li><button onclick="test_query_2_9();">test_query_2_9</button></li>
+        <li><button onclick="test_query_2_9_call_2_10();">test_query_2_9_call_2_10</button></li>
         <li><button onclick="test_program_2_10();">test_program_2_4</button></li>
     </ul>
 </div>
@@ -218,7 +247,12 @@
     </div>
     <br>
     <br>
-    <div id="resultInterpretation">
+    <div id="resultInterpretationRegisters">
+
+    </div>
+    <br>
+    <br>
+    <div id="resultInterpretationHeap">
 
     </div>
 </div>

@@ -242,10 +242,26 @@ Code: the word code for WAM instructions is held in the host environment. The (c
     (func $getValue (param $Xreg i32) (param $Areg i32)
         (call $unify (local.get $Xreg) (local.get $Areg))
     )
+
+    (;
+    From https://github.com/a-yiorgos/wambook/blob/master/wamerratum.txt:
+    "In the definition of get_structure (fig 2.6, page 13) S should be
+    initialized to 1 before exiting get_structure in either READ or WRITE
+    modes."
+    This appears to mean not that "S should be initialized to 1" but
+    rather that "S should be initialized to (location of first argument)"
+    where (location of first argument) is the location of the 'indicator'
+    (i.e. 'f/n') plus one.
+    In the WRITE case (implemented by $getStructureSTR) this is
+    (call $termVal (local.get $addr)) + 1.
+    In the READ case (implemented by $getStructureREF) this is ($H+2).
+    ;)
+
     (func $getStructure (param $indicator i32) (param $reg i32)
-        (local $addr i32) (local $tag i32)
+        (local $addr i32) (local $term i32) (local $tag i32)
         (local.set $addr (call $deref (local.get $reg)))
-        (local.set $tag (call $termTag (local.get $addr)))
+        (local.set $term (call $loadFromStore (local.get $addr)))
+        (local.set $tag (call $termTag (local.get $term)))
 
         (block
             (block
@@ -257,7 +273,7 @@ Code: the word code for WAM instructions is held in the host environment. The (c
                 return
             )
             ;; (local.get $tag) = 1 = (global.get $TAG_STR)
-            (global.set $fail (call $getStructureSTR (local.get $indicator) (call $termVal (local.get $addr))))
+            (global.set $fail (call $getStructureSTR (local.get $indicator) (call $termVal (local.get $term))))
             return
         )
         ;; (local.get $tag) > 1 = failure
@@ -271,6 +287,7 @@ Code: the word code for WAM instructions is held in the host environment. The (c
         (call $storeToHeap (local.get $nextH) (local.get $indicator))               ;; HEAP[nextH􏰌]􏰃 <- f/n
         (call $bind (local.get $addr) (global.get $H))                              ;; bind(addr, H)
         (call $addToH (i32.const 2))                                                ;; H <- H+2
+        (global.set $S (global.get $H))                                             ;; S <- H (H is the location where the first argument of the structure will be stored).
         (global.set $mode (global.get $WRITE_MODE))                                 ;; mode <- write
 
         (return (global.get $FALSE)) ;; 'fail' is false.
@@ -324,10 +341,15 @@ Code: the word code for WAM instructions is held in the host environment. The (c
         (call $setVariable (i32.const 5))
         (call $putStructure (global.get $predF_1) (i32.const 3))
         (call $setValue (i32.const 5))
-        (call $call (global.get $predP_3Program))
     )
 
-    (func $test
+    (func $query2_9call2_10
+        (call $query2_9)
+        (call $program2_10)
+;;        (call $call (global.get $predP_3Program))
+    )
+
+    (func $test_program2_10
         (call $setVariable (i32.const 1))
         (call $setVariable (i32.const 2))
         (call $setVariable (i32.const 3))
@@ -580,6 +602,8 @@ end unify
     (export "getStructure" (func $getStructure))
     (export "addToH" (func $addToH))
     (export "bind" (func $bind))
-    (export "test" (func $test))
+    (export "query2_9" (func $query2_9))
+    (export "query2_9call2_10" (func $query2_9call2_10))
+    (export "test_program2_10" (func $test_program2_10))
     (export "program2_10" (func $program2_10))
 )
