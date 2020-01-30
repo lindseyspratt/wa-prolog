@@ -1,0 +1,365 @@
+<html lang="">
+<head>
+    <title>Web Assembly Wam Tests</title>
+<script>
+    let table = new WebAssembly.Table({initial: 100, element: "anyfunc"});
+    let memory = new WebAssembly.Memory({initial: 1});
+    let atable = [];
+    let code = [];
+    let indicators = [];
+    let programs = [];
+
+    const MAX_REGISTER = 256;
+    const PDL_START = (MAX_REGISTER+1) * 4;
+    const MAX_PDL = 256;
+    const MIN_STACK = MAX_REGISTER + MAX_PDL + 1;
+    const STACK_START = (MIN_STACK*4);
+    const MAX_STACK = 128;
+    const MIN_HEAP = MAX_REGISTER + MAX_PDL + MAX_STACK + 1;
+    const HEAP_START = (MIN_HEAP*4);
+
+    let importObject = {js:
+            {mem: memory,
+                table: table,
+                maxRegister: MAX_REGISTER,
+                pdlStart: PDL_START,
+                maxPDL: MAX_PDL,
+                minStack: MIN_STACK,
+                stackStart: STACK_START,
+                minHeap: MIN_HEAP,
+                heapStart: HEAP_START,
+            lookupAtom: lookupAtomWA,
+            getCode: getCodeWA,
+            setCode: setCodeWA,
+            getIndicatorArity: getIndicatorArityWA}};
+
+    function lookupAtomWA(start, length){
+        var bytes = new Uint8Array(memory.buffer, start, length);
+        var string = new TextDecoder('utf8').decode(bytes);
+        return lookup_atom(string);
+    }
+
+    function getCodeWA(codeOfst) {
+        return code[codeOfst];
+    }
+
+    function setCodeWA(codeOfst) {
+        code = programs[codeOfst];
+    }
+
+    function getIndicatorArityWA(indicator) {
+        return indicators[indicator][1];
+    }
+
+    function lookup_atom(name)
+    {
+        if(typeof name !== 'string') {
+            throw 'invalid lookup_atom. name must have type of string, but is ' + typeof name + '. name = ' + name;
+        }
+
+        var i;
+        for (i = 0; i < atable.length; i++)
+        {
+            if (atable[i] === name)
+                return i;
+        }
+        i = atable.length;
+        atable[i] = name;
+        return i;
+    }
+
+    function lookupIndicator(name, arity) {
+        let nameID = lookup_atom(name);
+
+        let i;
+        for (i = 0; i < indicators.length; i++) {
+            if (indicators[i][0] === nameID
+                && indicators[i][1] === arity) {
+                console.log(name + '/' + arity + ' found ' + i);
+                return i;
+            }
+        }
+        i = indicators.length;
+        indicators[i] = [nameID, arity];
+        console.log(name + '/' + arity + ' created ' + i);
+        return i;
+    }
+
+    let opCodes;
+
+    function initialize_op_codes(obj) {
+        opCodes = {};
+        opCodes.nop = obj.instance.exports.nop_opcode();
+        opCodes.put_structure = obj.instance.exports.put_structure_opcode();
+        opCodes.get_structure = obj.instance.exports.get_structure_opcode();
+        opCodes.set_variable = obj.instance.exports.set_variable_opcode();
+        opCodes.put_variable = obj.instance.exports.put_variable_opcode();
+        opCodes.get_variable = obj.instance.exports.get_variable_opcode();
+        opCodes.set_value = obj.instance.exports.set_value_opcode();
+        opCodes.put_value = obj.instance.exports.put_value_opcode();
+        opCodes.get_value = obj.instance.exports.get_value_opcode();
+        opCodes.unify_variable = obj.instance.exports.unify_variable_opcode();
+        opCodes.unify_value = obj.instance.exports.unify_value_opcode();
+        opCodes.call = obj.instance.exports.call_opcode();
+        opCodes.proceed = obj.instance.exports.proceed_opcode();
+        opCodes.allocate = obj.instance.exports.allocate_opcode();
+        opCodes.deallocate = obj.instance.exports.deallocate_opcode();
+    }
+
+    function create_program_3_1_p_2() {
+        // p(X, Y) :- q(X,Z), r(Z,Y).
+        return [
+            opCodes.allocate, 2, // allocate 2
+            opCodes.get_variable, 0, 3, 1, // get_variable X3, A1
+            opCodes.get_variable, 1, 1, 2, // get_variable Y1, A2
+            opCodes.put_value, 0, 3, 1, // put_value X3, A1
+            opCodes.put_variable, 1, 2, 2, // put_variable Y2, A2
+            opCodes.call, lookupIndicator("q", 2), // call q/2
+            opCodes.put_value, 1, 2, 1, // put_value Y2, A1
+            opCodes.put_value, 1, 1, 2, // put_value Y1, A2
+            opCodes.call, lookupIndicator("r", 2), // call r/2
+            opCodes.deallocate // deallocate
+        ];
+    }
+
+    /*
+    ?- p(U,V).
+
+X3,A1 = U
+X4,A2 = V
+
+put_variable X3,A1
+put_variable X4,A2
+call p/2
+    */
+    function create_query_3_1() {
+        // ?- p(X,Y).
+        return [
+            opCodes.put_variable, 0, 3, 1, // put_variable X3,A1
+            opCodes.put_variable, 0, 4, 2, // put_variable X4,A2
+            opCodes.call, lookupIndicator("p", 2) // call p/2
+        ];
+    }
+
+    /*
+q(a, b).
+
+X1 = a
+X2 = b
+
+get_structure a/0, A1
+get_structure b/0, A2
+proceed
+     */
+
+    function create_program_3_1_q_2 () {
+        // q(a, b)
+        return [
+            opCodes.get_structure, lookupIndicator("a", 0), 1, // get_structure a/0, A1
+            opCodes.get_structure, lookupIndicator("b", 0), 2, // get_structure b/0, A2
+            opCodes.proceed // proceed
+        ];
+    }
+
+    /*
+    r(b, c).
+
+X1 = b
+X2 = c
+
+get_structure b/0, A1
+get_structure c/0, A2
+proceed
+     */
+    function create_program_3_1_r_2 () {
+        // r(b, c)
+        return [
+            opCodes.get_structure, lookupIndicator("b", 0), 1, // get_structure b/0, A1
+            opCodes.get_structure, lookupIndicator("c", 0), 2, // get_structure c/0, A2
+            opCodes.proceed // proceed
+        ];
+    }
+    // function test_program_3_1() {
+    //
+    //     fetch('build/wam/language2.wasm').then(response =>
+    //         response.arrayBuffer()
+    //     ).then(bytes =>
+    //         WebAssembly.instantiate(bytes, importObject)
+    //     ).then(obj => {
+    //         initialize_op_codes(obj);
+    //         programs = [];
+    //         programs[lookupIndicator("p", 2)] = create_program_3_1_p_2();
+    //         programs[lookupIndicator("q", 2)] = create_program_3_1_q_2();
+    //         programs[lookupIndicator("r", 2)] = create_program_3_1_r_2();
+    //
+    //         code = programs[lookupIndicator("p", 2)];
+    //         let i32Initial = new Uint32Array(memory.buffer);
+    //         for(let i = 0; i < MIN_HEAP + 100;i++) {
+    //             i32Initial[i] = 0;
+    //         }
+    //
+    //         obj.instance.exports.run();
+    //         let i32 = new Uint32Array(memory.buffer);
+    //
+    //         display_results('test program3_1', i32, MIN_HEAP, 16);
+    //     });
+    // }
+    function test_query_3_1() {
+
+        fetch('build/wam/language2.wasm').then(response =>
+            response.arrayBuffer()
+        ).then(bytes =>
+            WebAssembly.instantiate(bytes, importObject)
+        ).then(obj => {
+            initialize_op_codes(obj);
+
+            programs = [];
+            programs[lookupIndicator("p", 2)] = create_program_3_1_p_2();
+            programs[lookupIndicator("q", 2)] = create_program_3_1_q_2();
+            programs[lookupIndicator("r", 2)] = create_program_3_1_r_2();
+
+
+            code = create_query_3_1();
+            let i32Initial = new Uint32Array(memory.buffer);
+            for(let i = 0; i < MIN_HEAP + 100;i++) {
+                i32Initial[i] = 0;
+            }
+
+            obj.instance.exports.run(0);
+            let i32 = new Uint32Array(memory.buffer);
+
+            display_results('test program3_1', i32, MIN_HEAP, 16);
+        });
+    }
+    function display_results(test, results, startingWord, length) {
+        let element1 = document.getElementById('testName');
+        element1.innerText = 'Test: ' + test;
+        let element2 = document.getElementById('result');
+        element2.innerText = 'startingWord=' + startingWord + ': ' + JSON.stringify(results.slice(startingWord, startingWord+length));
+        let element3 = document.getElementById('resultInterpretationRegisters');
+        element3.innerText = 'registers: ' + interpret_memory(results, 1, 16);
+        let element4 = document.getElementById('resultInterpretationHeap');
+        element4.innerText = 'heap: ' + interpret_memory(results, startingWord);
+    }
+    function interpret_memory(results, startingWord, explicitLength) {
+        let output = '';
+        let i = startingWord;
+        while(i < results.length) {
+            let info = interpret_memory_item(results, i);
+            if((!explicitLength && info.string === '_0')||(explicitLength && i >= explicitLength)) {
+                // fake variable reference
+                break;
+            }
+            output += i + ': ' + info.string + '; ';
+            i = info.nextItemOfst;
+        }
+        return output;
+    }
+    function interpret_memory_item(results, itemOfst) {
+        let word = results[itemOfst];
+        let tag = get_tag(word);
+        switch(tag) {
+            case TAG_REF: //var/REFerence
+            {
+                let string = '_' + get_val(word);
+                let term = results[get_val(word)];
+                if(term !== word) {
+                    let stringInfo = interpret_memory_item(results, get_val(word));
+                    string = stringInfo.string;
+                }
+                return {string: string, nextItemOfst: itemOfst+1}; // variable represented by '_N' where N is an arbitrary integer.
+            }
+            case TAG_STR: //STRucture
+            {
+                // STR value is address of indicator word, which is immediately followed by arity(indicator) argument words.
+                // Each argument word is a (tagged) term word
+                // structure = f(a1, ..., an)
+                // The indicator word may directly follow the 'structure' word, or it may be elsewhere.
+                // If it is directly after the structure word, then the intrepret_memory processing will skip
+                // to the end of the structure to continue to the next item.
+                let result = '';
+                let structureWordOfst = get_val(word);
+                result += '{' + structureWordOfst + '} ';
+                let indicator = results[structureWordOfst];
+                let pair = indicators[indicator];
+                let functorID = pair[0];
+                result += atable[functorID] + '(';
+                let arity = pair[1];
+                for(let argOfst = 0;argOfst < arity;argOfst++) {
+                    let argInfo = interpret_memory_item(results, structureWordOfst + 1 + argOfst);
+                    if(argOfst > 0) {
+                        result += ', ';
+                    }
+
+                    if(argInfo.nextItemOfst !== structureWordOfst + 1 + argOfst + 1) {
+                        throw 'invalid structure words';
+                    }
+
+                    result += argInfo.string;
+                }
+                result += ')';
+                let nextOfst = structureWordOfst === itemOfst+1 ? structureWordOfst + arity + 1 : itemOfst + 1;
+                return  {string: result, nextItemOfst: nextOfst}
+            }
+            default:
+            {
+                return {string: 'unrecognized: ' + word + ' (tag = ' + tag + ', val = ' + get_val(word) + ') at ' + itemOfst,
+                    nextItemOfst: itemOfst+1};
+            }
+        }
+    }
+    const READ = 0;
+    const WRITE = 1;
+    const TAG_REF = 0; // 0x00000000
+    const TAG_STR = 1; // 0x08000000
+    const TAG_LST = 2; // 0x10000000
+    const TAG_INT = 3; // 0x18000000
+    const TAG_ATM = 4; // 0x20000000
+    const TAG_FLT = 5; // 0x28000000
+    const WORD_BITS = 27;
+    const TAG_MASK = 7;
+
+    function add_tag(value) {
+        return value ^ (TAG_STR << WORD_BITS)
+    }
+
+    function get_tag(p)
+    {
+        // >>> is unsigned-right-shift. Nice.
+        return (p >>> WORD_BITS) & TAG_MASK;
+    }
+    function get_val(p)
+    {
+        return p & ((1 << WORD_BITS)-1);
+    }
+
+</script>
+</head>
+<body>
+<div id="tests">
+    <ul>
+        <li><button onclick="test_query_3_1();">test_query_3_1</button></li>
+    </ul>
+</div>
+<div id="display">
+    <div id="testName">
+
+    </div>
+    <br>
+    <br>
+    <div id="result">
+
+    </div>
+    <br>
+    <br>
+    <div id="resultInterpretationRegisters">
+
+    </div>
+    <br>
+    <br>
+    <div id="resultInterpretationHeap">
+
+    </div>
+</div>
+</body>
+</html>
