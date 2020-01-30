@@ -181,6 +181,9 @@ The (call $setCode pred) function sets the host code to the code for the predica
 
         global.set $P
     )
+    (func $addToTR (param $val i32)
+        (global.set $TR (i32.add (global.get $TR) (local.get $val)))
+    )
     (func $getCodeArg (param $val i32) (result i32)
         (call $getCode (i32.add (global.get $P) (local.get $val)))
     )
@@ -209,6 +212,10 @@ The (call $setCode pred) function sets the host code to the code for the predica
          (call $storeToAddress (local.get $addr) (local.get $val))
     )
 
+    (func $storeToTrail (param $addr i32) (param $val i32)
+         (call $storeToAddress (local.get $addr) (local.get $val))
+    )
+
     (func $storeToAddress (param $addr i32) (param $val i32)
         (i32.store (call $wordToByteOffset (local.get $addr)) (local.get $val))
     )
@@ -234,6 +241,9 @@ The (call $setCode pred) function sets the host code to the code for the predica
         (call $loadFromAddress (local.get $addr))
     )
     (func $loadFromStack (param $addr i32) (result i32)
+        (call $loadFromAddress (local.get $addr))
+    )
+    (func $loadFromTrail (param $addr i32) (result i32)
         (call $loadFromAddress (local.get $addr))
     )
     (func $loadFromAddress (param $addr i32) (result i32)
@@ -325,11 +335,11 @@ The (call $setCode pred) function sets the host code to the code for the predica
             )
             (then
                 (call $storeAddressToAddress (local.get $a2) (local.get $a1)) ;; value at source $a2 to store (memory) word at destination $a1
-                ;; not yet implemented: (call $trail (local.get $a1))
+                (call $trail (local.get $a1))
             )
             (else
                 (call $storeAddressToAddress (local.get $a1) (local.get $a2)) ;; value at source $a1 to store (memory) word at destination $a2
-                ;; not yet implemented: (call $trail (local.get $a2))
+                (call $trail (local.get $a2))
             )
         )
     )
@@ -445,18 +455,9 @@ The (call $setCode pred) function sets the host code to the code for the predica
         (call $storeToStack (i32.add (local.get $newE) (global.get $En)) (local.get $n))
     )
 
-    (func $choicepoint_frame_slot_address (param $newB i32) (param $suffixSlot i32) (result i32)
-        (i32.add
-            (local.get $newB)
-            (i32.add
-                (global.get $num_of_args)
-                (local.get $suffixSlot)
-            )
-        )
-    )
-
     (func $create_choicepoint_frame (param $newB i32) (param $label i32)
         (local $i i32)
+        (local $lastFrameArg i32)
         (call $storeToStack (local.get $newB) (global.get $num_of_args))
         (local.set $i (i32.const 1))
         (block
@@ -469,29 +470,46 @@ The (call $setCode pred) function sets the host code to the code for the predica
                 (br 0)
             )
         )
+        (local.set $lastFrameArg (i32.add (local.get $newB) (global.get $num_of_args)))
         (call $storeToStack
-            (call $choicepoint_frame_slot_address (local.get $newB) (global.get $BkCE))
+            (i32.add (local.get $lastFrameArg) (global.get $BkCE))
             (global.get $E)
         )
         (call $storeToStack
-            (call $choicepoint_frame_slot_address (local.get $newB) (global.get $BkCP))
+            (i32.add (local.get $lastFrameArg) (global.get $BkCP))
             (global.get $CP)
         )
         (call $storeToStack
-            (call $choicepoint_frame_slot_address (local.get $newB) (global.get $BkB))
+            (i32.add (local.get $lastFrameArg) (global.get $BkB))
             (global.get $B)
         )
         (call $storeToStack
-            (call $choicepoint_frame_slot_address (local.get $newB) (global.get $BkBP))
+            (i32.add (local.get $lastFrameArg) (global.get $BkBP))
             (local.get $label)
         )
         (call $storeToStack
-            (call $choicepoint_frame_slot_address (local.get $newB) (global.get $BkTR))
+            (i32.add (local.get $lastFrameArg) (global.get $BkTR))
             (global.get $TR)
         )
         (call $storeToStack
-            (call $choicepoint_frame_slot_address (local.get $newB) (global.get $BkH))
+            (i32.add (local.get $lastFrameArg) (global.get $BkH))
             (global.get $H)
+        )
+    )
+
+    (func $storeRegistersFromChoicepoint
+        (local $i i32) (local $n i32)
+        (local.set $i (i32.const 1))
+        (local.set $n (call $loadFromStack (global.get $B)))
+        (block
+            (loop
+                (call $storeToRegister
+                    (local.get $i)
+                    (call $loadFromStack (i32.add (global.get $B) (local.get $i))))
+                (br_if 1 (i32.eq (local.get $i) (local.get $n)))
+                (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                (br 0)
+            )
         )
     )
 
@@ -521,6 +539,36 @@ The (call $setCode pred) function sets the host code to the code for the predica
         )
     )
 
+    (func $trail (param $a i32)
+        (if
+            (i32.or
+                (i32.lt_u (local.get $a) (global.get $HB))
+                (i32.and
+                    (i32.lt_u (global.get $H) (local.get $a))
+                    (i32.lt_u (local.get $a) (global.get $B))
+                )
+            )
+            (then
+                (call $storeToTrail (local.get $a) (global.get $TR))
+                (call $addToTR (i32.const 1))
+            )
+        )
+    )
+
+    (func $unwindTrail (param $a1 i32) (param $a2 i32)
+        (local $a2m1 i32) (local $trail_i i32) (local $i i32)
+        (local.set $a2m1 (i32.sub (local.get $a2) (i32.const 1)))
+        (local.set $i (local.get $a1))
+        (block
+            (loop
+                (local.set $trail_i (call $loadFromTrail (local.get $i)))
+                (call $storeToStack (local.get $trail_i) (local.get $trail_i))
+                (br_if 1 (i32.eq (local.get $i) (local.get $a2m1)))
+                (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                (br 0)
+            )
+        )
+    )
     (func $initialize_environment
         (call $storeToStack (global.get $minStack) (i32.const -1))
         (call $storeToStack (i32.add (global.get $minStack) (global.get $ECP)) (i32.const -1))
@@ -575,6 +623,8 @@ The (call $setCode pred) function sets the host code to the code for the predica
     (func $allocate_opcode (result i32) (i32.const 13))
     (func $deallocate_opcode (result i32) (i32.const 14))
     (func $try_me_else_opcode (result i32) (i32.const 15))
+    (func $retry_me_else_opcode (result i32) (i32.const 16))
+    (func $trust_me_opcode (result i32) (i32.const 17))
 
     (func $evalOp (param $op i32)
         (block
@@ -593,7 +643,9 @@ The (call $setCode pred) function sets the host code to the code for the predica
         (block
         (block
         (block
-            (br_table 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 (local.get $op))
+        (block
+        (block
+            (br_table 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 (local.get $op))
             ) ;; 0
             (call $op0) ;; nop
             return
@@ -642,6 +694,12 @@ The (call $setCode pred) function sets the host code to the code for the predica
         ) ;; 15
             (call $op15) ;; $try_me_else
             return
+        ) ;; 16
+            (call $op16) ;; $retry_me_else
+            return
+        ) ;; 17
+            (call $op17) ;; $trust_me
+            return
    )
 
     (func $op0 ;; No operation
@@ -680,12 +738,18 @@ The (call $setCode pred) function sets the host code to the code for the predica
 
     (func $op7 ;; getValue
         (call $getValue (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
-        (call $addToP (i32.const 3))
+        (if (global.get $fail)
+            (then (call $backtrack))
+            (else (call $addToP (i32.const 3)))
+        )
     )
 
     (func $op8 ;; getStructure
         (call $getStructure (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
-        (call $addToP (i32.const 3))
+        (if (global.get $fail)
+            (then (call $backtrack))
+            (else (call $addToP (i32.const 3)))
+        )
     )
 
     (func $op9 ;; unifyVariable
@@ -695,7 +759,10 @@ The (call $setCode pred) function sets the host code to the code for the predica
 
     (func $op10 ;; unifyValue
         (call $unifyValue (call $getCodeArg (i32.const 1)))
-        (call $addToP (i32.const 2))
+        (if (global.get $fail)
+            (then (call $backtrack))
+            (else (call $addToP (i32.const 2)))
+        )
     )
 
     (func $op11 ;; call
@@ -721,6 +788,16 @@ The (call $setCode pred) function sets the host code to the code for the predica
     (func $op15 ;; try_me_else
         (call $try_me_else (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
+    )
+
+    (func $op16 ;; retry_me_else
+        (call $retry_me_else (call $getCodeArg (i32.const 1)))
+        (call $addToP (i32.const 2))
+    )
+
+    (func $op17 ;; trust_me
+        (call $trust_me)
+        (call $addToP (i32.const 1))
     )
 
     (func $putStructure (param $indicator i32) (param $reg i32)
@@ -919,6 +996,38 @@ The (call $setCode pred) function sets the host code to the code for the predica
         (global.set $HB (global.get $H))
     )
 
+    (func $retry_me_else (param $label i32)
+        (local $arity i32) (local $lastFrameArg i32) (local $backTR i32)
+        (local.set $arity (call $loadFromStack (global.get $B)))
+        (call $storeRegistersFromChoicepoint)
+        (local.set $lastFrameArg (i32.add (global.get $B) (local.get $arity)))
+        (global.set $E (call $loadFromStack (i32.add (local.get $lastFrameArg) (global.get $BkCE))))
+        (global.set $CP (call $loadFromStack (i32.add (local.get $lastFrameArg) (global.get $BkCP))))
+        (call $storeToStack
+            (i32.add (local.get $lastFrameArg) (global.get $BkBP))
+            (local.get $label))
+        (local.set $backTR (call $loadFromStack (i32.add (local.get $lastFrameArg) (global.get $BkTR))))
+        (call $unwindTrail (local.get $backTR) (global.get $TR) )
+        (global.set $TR (local.get $backTR))
+        (global.set $H (call $loadFromStack (i32.add (local.get $lastFrameArg) (global.get $BkH))))
+        (global.set $HB (global.get $H))
+    )
+
+    (func $trust_me
+        (local $arity i32) (local $lastFrameArg i32) (local $backTR i32)
+        (local.set $arity (call $loadFromStack (global.get $B)))
+        (call $storeRegistersFromChoicepoint)
+        (local.set $lastFrameArg (i32.add (global.get $B) (local.get $arity)))
+        (global.set $E (call $loadFromStack (i32.add (local.get $lastFrameArg) (global.get $BkCE))))
+        (global.set $CP (call $loadFromStack (i32.add (local.get $lastFrameArg) (global.get $BkCP))))
+        (local.set $backTR (call $loadFromStack (i32.add (local.get $lastFrameArg) (global.get $BkTR))))
+        (call $unwindTrail (local.get $backTR) (global.get $TR) )
+        (global.set $TR (local.get $backTR))
+        (global.set $B (call $loadFromStack (i32.add (local.get $lastFrameArg) (global.get $BkB))))
+        (global.set $H (call $loadFromStack (i32.add (local.get $lastFrameArg) (global.get $BkH))))
+        (global.set $HB (global.get $H))
+    )
+
     (export "setH" (func $setH))
     (export "shiftTag" (func $shiftTag))
     (export "tagInteger" (func $tagInteger))
@@ -945,6 +1054,8 @@ The (call $setCode pred) function sets the host code to the code for the predica
     (export "allocate_opcode" (func $allocate_opcode))
     (export "deallocate_opcode" (func $deallocate_opcode))
     (export "try_me_else_opcode" (func $try_me_else_opcode))
+    (export "retry_me_else_opcode" (func $retry_me_else_opcode))
+    (export "trust_me_opcode" (func $trust_me_opcode))
 
     (export "run" (func $run))
 )

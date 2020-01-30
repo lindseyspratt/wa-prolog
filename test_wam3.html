@@ -92,6 +92,33 @@
         return i;
     }
 
+    function process_labels(program) {
+        let map = {};
+        let result = [];
+        let j = 0;
+        // find labels
+        for(let i = 0;i < program.length; i++) {
+            if(typeof program[i] === 'object') {
+                if(program[i].label) {
+                    map[program[i].label] = j+1;
+                    continue; // skip to next word after label word.
+                }
+            }
+            j++;
+            result[j] = program[i];
+        }
+
+        // replace label references
+        for(let k = 0;k < result.length; k++) {
+            if(typeof result[k] === 'object') {
+                if(result[k].ref) {
+                    result[k] = map[result[k].ref];
+                }
+            }
+        }
+
+        return result;
+    }
     let opCodes;
 
     function initialize_op_codes(obj) {
@@ -112,109 +139,50 @@
         opCodes.allocate = obj.instance.exports.allocate_opcode();
         opCodes.deallocate = obj.instance.exports.deallocate_opcode();
         opCodes.try_me_else = obj.instance.exports.try_me_else_opcode();
+        opCodes.retry_me_else = obj.instance.exports.retry_me_else_opcode();
+        opCodes.trust_me = obj.instance.exports.trust_me_opcode();
     }
 
-    function create_program_3_1_p_2() {
-        // p(X, Y) :- q(X,Z), r(Z,Y).
+    function create_program_4_4_p_2() {
+        // p(X, a).
+        // p(b, X).
+        // p(X, Y) :- p(X,a), p(b,Y).
+        return process_labels([
+            opCodes.try_me_else, {ref: 'L1'},                   // try_me_else, L1
+            opCodes.get_variable, 0, 3, 1,                      // get_variable X3, A1
+            opCodes.get_structure, lookupIndicator("a", 0), 2,  // get_structure a/0, A2
+            opCodes.proceed,                                    // proceed
+            {label: 'L1'},
+            opCodes.retry_me_else, {ref: 'L2'},                 // try_me_else, L2
+            opCodes.get_structure, lookupIndicator("b", 0), 1,  // get_structure b/0, A1
+            opCodes.get_variable, 0, 3, 2,                      // get_variable X3, A2
+            opCodes.proceed,                                    // proceed
+            {label: 'L2'},
+            opCodes.trust_me,
+            opCodes.allocate, 1,                                // allocate, 1
+            opCodes.get_variable, 0, 3, 1,                      // get_variable X3, A1
+            opCodes.put_value, 0, 3, 1,                         // put_value X3, A1
+            opCodes.put_structure, lookupIndicator("a", 0), 2,  // put_variable Y2, A2
+            opCodes.call, lookupIndicator("p", 2),              // call p/2
+            opCodes.put_structure, lookupIndicator("b", 0), 1,  // put_structure b/0, A1
+            opCodes.put_value, 1, 1, 2,                         // put_value Y1, A2
+            opCodes.call, lookupIndicator("p", 2),              // call p/2
+            opCodes.deallocate                                  // deallocate
+        ]);
+    }
+
+    function create_query_4_4() {
+        // ?- p(c,d).
         return [
-            opCodes.allocate, 2, // allocate 2
-            opCodes.get_variable, 0, 3, 1, // get_variable X3, A1
-            opCodes.get_variable, 1, 1, 2, // get_variable Y1, A2
-            opCodes.put_value, 0, 3, 1, // put_value X3, A1
-            opCodes.put_variable, 1, 2, 2, // put_variable Y2, A2
-            opCodes.call, lookupIndicator("q", 2), // call q/2
-            opCodes.put_value, 1, 2, 1, // put_value Y2, A1
-            opCodes.put_value, 1, 1, 2, // put_value Y1, A2
-            opCodes.call, lookupIndicator("r", 2), // call r/2
-            opCodes.deallocate // deallocate
+            opCodes.put_structure, lookupIndicator("c", 0), 1,  // put_structure, c/0,A1
+            opCodes.put_structure, lookupIndicator("d", 0), 2,  // put_structure, d/0,A2
+            opCodes.call, lookupIndicator("p", 2)               // call p/2
         ];
     }
 
-    /*
-    ?- p(U,V).
+    function test_query_4_4() {
 
-X3,A1 = U
-X4,A2 = V
-
-put_variable X3,A1
-put_variable X4,A2
-call p/2
-    */
-    function create_query_3_1() {
-        // ?- p(X,Y).
-        return [
-            opCodes.put_variable, 0, 3, 1, // put_variable X3,A1
-            opCodes.put_variable, 0, 4, 2, // put_variable X4,A2
-            opCodes.call, lookupIndicator("p", 2) // call p/2
-        ];
-    }
-
-    /*
-q(a, b).
-
-X1 = a
-X2 = b
-
-get_structure a/0, A1
-get_structure b/0, A2
-proceed
-     */
-
-    function create_program_3_1_q_2 () {
-        // q(a, b)
-        return [
-            opCodes.get_structure, lookupIndicator("a", 0), 1, // get_structure a/0, A1
-            opCodes.get_structure, lookupIndicator("b", 0), 2, // get_structure b/0, A2
-            opCodes.proceed // proceed
-        ];
-    }
-
-    /*
-    r(b, c).
-
-X1 = b
-X2 = c
-
-get_structure b/0, A1
-get_structure c/0, A2
-proceed
-     */
-    function create_program_3_1_r_2 () {
-        // r(b, c)
-        return [
-            opCodes.get_structure, lookupIndicator("b", 0), 1, // get_structure b/0, A1
-            opCodes.get_structure, lookupIndicator("c", 0), 2, // get_structure c/0, A2
-            opCodes.proceed // proceed
-        ];
-    }
-    // function test_program_3_1() {
-    //
-    //     fetch('build/wam/language2.wasm').then(response =>
-    //         response.arrayBuffer()
-    //     ).then(bytes =>
-    //         WebAssembly.instantiate(bytes, importObject)
-    //     ).then(obj => {
-    //         initialize_op_codes(obj);
-    //         programs = [];
-    //         programs[lookupIndicator("p", 2)] = create_program_3_1_p_2();
-    //         programs[lookupIndicator("q", 2)] = create_program_3_1_q_2();
-    //         programs[lookupIndicator("r", 2)] = create_program_3_1_r_2();
-    //
-    //         code = programs[lookupIndicator("p", 2)];
-    //         let i32Initial = new Uint32Array(memory.buffer);
-    //         for(let i = 0; i < MIN_HEAP + 100;i++) {
-    //             i32Initial[i] = 0;
-    //         }
-    //
-    //         obj.instance.exports.run();
-    //         let i32 = new Uint32Array(memory.buffer);
-    //
-    //         display_results('test program3_1', i32, MIN_HEAP, 16);
-    //     });
-    // }
-    function test_query_3_1() {
-
-        fetch('build/wam/language2.wasm').then(response =>
+        fetch('build/wam/language3.wasm').then(response =>
             response.arrayBuffer()
         ).then(bytes =>
             WebAssembly.instantiate(bytes, importObject)
@@ -222,12 +190,9 @@ proceed
             initialize_op_codes(obj);
 
             programs = [];
-            programs[lookupIndicator("p", 2)] = create_program_3_1_p_2();
-            programs[lookupIndicator("q", 2)] = create_program_3_1_q_2();
-            programs[lookupIndicator("r", 2)] = create_program_3_1_r_2();
+            programs[lookupIndicator("p", 2)] = create_program_4_4_p_2();
 
-
-            code = create_query_3_1();
+            code = create_query_4_4();
             let i32Initial = new Uint32Array(memory.buffer);
             for(let i = 0; i < MIN_HEAP + 100;i++) {
                 i32Initial[i] = 0;
@@ -236,7 +201,7 @@ proceed
             obj.instance.exports.run(0);
             let i32 = new Uint32Array(memory.buffer);
 
-            display_results('test program3_1', i32, MIN_HEAP, 16);
+            display_results('test program4_4', i32, MIN_HEAP, 16);
         });
     }
     function display_results(test, results, startingWord, length) {
@@ -346,7 +311,7 @@ proceed
 <body>
 <div id="tests">
     <ul>
-        <li><button onclick="test_query_3_1();">test_query_3_1</button></li>
+        <li><button onclick="test_query_4_4();">test_query_4_4</button></li>
     </ul>
 </div>
 <div id="display">
