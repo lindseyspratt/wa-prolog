@@ -236,7 +236,9 @@
             {
                 let string = '_' + get_val(word);
                 let term = results[get_val(word)];
-                if(term !== word) {
+                if(term === 0) {
+                    string = "_0";
+                } else if(term !== word) {
                     let stringInfo = interpret_memory_item(results, get_val(word));
                     string = stringInfo.string;
                 }

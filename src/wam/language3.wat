@@ -360,6 +360,9 @@ The (call $setCode pred) function sets the host code to the code for the predica
         (call $pushPDL (local.get $a1))
         (call $pushPDL (local.get $a2))
         (global.set $fail (global.get $FALSE))
+        ;; PDL has 2 elements due to two $pushPDL calls above, so the
+        ;; loop must succeed at least once, so no initial loop condition
+        ;; check is needed.
         (block
             (loop
                 (local.set $d1 (call $deref (call $popPDL)))
@@ -413,13 +416,19 @@ The (call $setCode pred) function sets the host code to the code for the predica
                     (then
                         (local.set $arity (call $getIndicatorArity (local.get $indicator1)))
                         (local.set $argIdx (i32.const 1))
-                        (block
-                            (loop
-                                (call $pushPDL (i32.add (local.get $val1) (local.get $argIdx)))
-                                (call $pushPDL (i32.add (local.get $val2) (local.get $argIdx)))
-                                (br_if 1 (i32.eq (local.get $argIdx) (local.get $arity)))
-                                (local.set $argIdx (i32.add (local.get $argIdx) (i32.const 1)))
-                                (br 0)
+                        ;; The structure may have arity == 0, in which case argIdx == 1 > arity
+                        ;; and the loop must be skipped.
+                        (if (i32.le_u (local.get $argIdx) (local.get $arity))
+                            (then
+                                (block
+                                    (loop
+                                        (call $pushPDL (i32.add (local.get $val1) (local.get $argIdx)))
+                                        (call $pushPDL (i32.add (local.get $val2) (local.get $argIdx)))
+                                        (br_if 1 (i32.eq (local.get $argIdx) (local.get $arity)))
+                                        (local.set $argIdx (i32.add (local.get $argIdx) (i32.const 1)))
+                                        (br 0)
+                                    )
+                                )
                             )
                         )
                         (return (global.get $FALSE))
@@ -460,14 +469,21 @@ The (call $setCode pred) function sets the host code to the code for the predica
         (local $lastFrameArg i32)
         (call $storeToStack (local.get $newB) (global.get $num_of_args))
         (local.set $i (i32.const 1))
-        (block
-            (loop
-                (call $storeToStack
-                    (i32.add (local.get $newB) (local.get $i))
-                    (call $loadFromRegister (local.get $i)))
-                (br_if 1 (i32.eq (local.get $i) (global.get $num_of_args)))
-                (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                (br 0)
+        ;; If the $num_of_args == 0 then there are no args to store in
+        ;; the choicepoint frame and the arg processing loop must
+        ;; be skipped.
+        (if (i32.le_u (local.get $i) (global.get $num_of_args))
+            (then
+                (block
+                    (loop
+                        (call $storeToStack
+                            (i32.add (local.get $newB) (local.get $i))
+                            (call $loadFromRegister (local.get $i)))
+                        (br_if 1 (i32.eq (local.get $i) (global.get $num_of_args)))
+                        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                        (br 0)
+                    )
+                )
             )
         )
         (local.set $lastFrameArg (i32.add (local.get $newB) (global.get $num_of_args)))
@@ -501,14 +517,20 @@ The (call $setCode pred) function sets the host code to the code for the predica
         (local $i i32) (local $n i32)
         (local.set $i (i32.const 1))
         (local.set $n (call $loadFromStack (global.get $B)))
-        (block
-            (loop
-                (call $storeToRegister
-                    (local.get $i)
-                    (call $loadFromStack (i32.add (global.get $B) (local.get $i))))
-                (br_if 1 (i32.eq (local.get $i) (local.get $n)))
-                (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                (br 0)
+        ;; If the number of registers in the choicepoint ($n) == 0
+        ;; then the register processing must be skipped.
+        (if (i32.le_u (local.get $i) (local.get $n))
+            (then
+                (block
+                    (loop
+                        (call $storeToRegister
+                            (local.get $i)
+                            (call $loadFromStack (i32.add (global.get $B) (local.get $i))))
+                        (br_if 1 (i32.eq (local.get $i) (local.get $n)))
+                        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                        (br 0)
+                    )
+                )
             )
         )
     )
@@ -559,13 +581,19 @@ The (call $setCode pred) function sets the host code to the code for the predica
         (local $a2m1 i32) (local $trail_i i32) (local $i i32)
         (local.set $a2m1 (i32.sub (local.get $a2) (i32.const 1)))
         (local.set $i (local.get $a1))
-        (block
-            (loop
-                (local.set $trail_i (call $loadFromTrail (local.get $i)))
-                (call $storeToStack (local.get $trail_i) (local.get $trail_i))
-                (br_if 1 (i32.eq (local.get $i) (local.get $a2m1)))
-                (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                (br 0)
+        ;; If TRAIL address $a1 is greater than ($a2 - 1)
+        ;; then skip processing the TRAIL slots.
+        (if (i32.le_u (local.get $i) (local.get $a2m1))
+            (then
+                (block
+                    (loop
+                        (local.set $trail_i (call $loadFromTrail (local.get $i)))
+                        (call $storeToStack (local.get $trail_i) (local.get $trail_i))
+                        (br_if 1 (i32.eq (local.get $i) (local.get $a2m1)))
+                        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                        (br 0)
+                    )
+                )
             )
         )
     )
@@ -594,11 +622,15 @@ The (call $setCode pred) function sets the host code to the code for the predica
     ;; WAM instruction loop. This halts when $P == -1.
 
     (func $evalLoop
-        (block
-            (loop
-                (call $evalOp (call $getCode (global.get $P)))
-                (br_if 1 (i32.eq (global.get $P) (i32.const -1)))
-                (br 0)
+        (if (i32.gt_s (global.get $P) (i32.const -1))
+            (then
+                (block
+                    (loop
+                        (call $evalOp (call $getCode (global.get $P)))
+                        (br_if 1 (i32.eq (global.get $P) (i32.const -1)))
+                        (br 0)
+                    )
+                )
             )
         )
     )
