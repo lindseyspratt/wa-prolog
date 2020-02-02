@@ -61,7 +61,7 @@ The (call $setCode pred) function sets the host code to the code for the predica
     (global $TAG_REF i32 (i32.const 0))
     (global $TAG_STR i32 (i32.const 1))
     (global $TAG_LIS i32 (i32.const 2))
-    (global $TAG_CON i32 (i32.const 3))
+    (global $TAG_CON i32 (i32.const 4))
 
     ;;(global $TAG_INT i32 (i32.const 4))
     ;;(global $TAG_FLT i32 (i32.const 5))
@@ -135,6 +135,11 @@ The (call $setCode pred) function sets the host code to the code for the predica
     )
     (func $tagReference (param $val i32) (result i32)
         global.get $TAG_REF
+        local.get $val
+        call $applyTag
+    )
+    (func $tagConstant (param $val i32) (result i32)
+        global.get $TAG_CON
         local.get $val
         call $applyTag
     )
@@ -214,6 +219,9 @@ The (call $setCode pred) function sets the host code to the code for the predica
     )
     (func $storeIndicatorAtHeapTop (param $fn i32)
         (call $storeToHeap (global.get $H) (call $tagPredicate (local.get $fn)))
+    )
+    (func $storeConstantAtHeapTop (param $c i32)
+        (call $storeToHeap (global.get $H) (call $tagConstant (local.get $c)))
     )
     (func $storeReferenceAtHeapTop
         (call $storeToHeap (global.get $H) (call $tagReference (global.get $H)))
@@ -313,6 +321,19 @@ The (call $setCode pred) function sets the host code to the code for the predica
             (call $wordToByteOffset (local.get $addr))
         )
     )
+
+    ;; variableType == 0 -> temporary variable, stored in X registers where register ID -> address == register ID as memory word offset
+    ;; variableType == 1 (!= 0) -> permanent variable, stored in Y registers where register ID -> address
+    ;; == environment slot/register == memory word offset of $E + $EPermVarBase + register ID
+
+    (func $resolveRegisterID (param $variableType i32) (param $reg i32) (result i32)
+        (if (result i32)
+            (i32.eq (local.get $variableType) (i32.const 0))
+            (then (local.get $reg))
+            (else (call $stackRegisterAddress (local.get $reg)))
+        )
+    )
+
 
     ;; The 'store' (register or heap cell) address may
     ;; contain a 'structure' term or a 'reference' (variable)
@@ -680,6 +701,10 @@ The (call $setCode pred) function sets the host code to the code for the predica
     (func $try_me_else_opcode (result i32) (i32.const 15))
     (func $retry_me_else_opcode (result i32) (i32.const 16))
     (func $trust_me_opcode (result i32) (i32.const 17))
+    (func $put_constant_opcode (result i32) (i32.const 18))
+    (func $get_constant_opcode (result i32) (i32.const 19))
+    (func $set_constant_opcode (result i32) (i32.const 20))
+    (func $unify_constant_opcode (result i32) (i32.const 21))
 
     (func $evalOp (param $op i32)
         (block
@@ -700,7 +725,11 @@ The (call $setCode pred) function sets the host code to the code for the predica
         (block
         (block
         (block
-            (br_table 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 (local.get $op))
+        (block
+        (block
+        (block
+        (block
+            (br_table 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 (local.get $op))
             ) ;; 0
             (call $op0) ;; nop
             return
@@ -755,7 +784,19 @@ The (call $setCode pred) function sets the host code to the code for the predica
         ) ;; 17
             (call $op17) ;; $trust_me
             return
-   )
+         ) ;; 18
+             (call $op18) ;; $put_constant
+             return
+        ) ;; 19
+            (call $op19) ;; $get_constant
+            return
+        ) ;; 20
+            (call $op20) ;; $set_constant
+            return
+        ) ;; 21
+            (call $op21) ;; $unify_constant
+            return
+  )
 
     (func $traceInst0 (param $inst i32)
         (call $traceInstLog0 (local.get $inst) )
@@ -888,6 +929,36 @@ The (call $setCode pred) function sets the host code to the code for the predica
         (call $addToP (i32.const 1))
     )
 
+    (func $op18 ;; put_constant
+        (call $traceInst2 (i32.const 18))
+        (call $put_constant (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
+        (call $addToP (i32.const 3))
+    )
+
+    (func $op19 ;; get_constant
+        (call $traceInst2 (i32.const 19))
+        (call $get_constant (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
+        (if (global.get $fail)
+            (then (call $backtrack))
+            (else (call $addToP (i32.const 3)))
+        )
+    )
+
+    (func $op20 ;; set_constant
+        (call $traceInst1 (i32.const 20))
+        (call $set_constant (call $getCodeArg (i32.const 1)))
+        (call $addToP (i32.const 2))
+    )
+
+    (func $op21 ;; unify_constant
+        (call $traceInst1 (i32.const 21))
+        (call $unify_constant (call $getCodeArg (i32.const 1)))
+        (if (global.get $fail)
+            (then (call $backtrack))
+            (else (call $addToP (i32.const 2)))
+        )
+    )
+
     (func $putStructure (param $indicator i32) (param $reg i32)
         ;;call $storeStructureAtHeapTop ;; simplified out according to section 5.1.
 
@@ -915,18 +986,6 @@ The (call $setCode pred) function sets the host code to the code for the predica
         (call $storeHeapTopToRegister (local.get $targetAddr))
         (call $storeHeapTopToRegister (local.get $Areg))
         (call $addToH (i32.const 1))
-    )
-
-    ;; variableType == 0 -> temporary variable, stored in X registers where register ID -> address == register ID as memory word offset
-    ;; variableType == 1 (!= 0) -> permanent variable, stored in Y registers where register ID -> address
-    ;; == environment slot/register == memory word offset of $E + $EPermVarBase + register ID
-
-    (func $resolveRegisterID (param $variableType i32) (param $reg i32) (result i32)
-        (if (result i32)
-            (i32.eq (local.get $variableType) (i32.const 0))
-            (then (local.get $reg))
-            (else (call $stackRegisterAddress (local.get $reg)))
-        )
     )
 
     (func $getVariable (param $variableType i32) (param $regID i32) (param $Areg i32)
@@ -1116,6 +1175,57 @@ The (call $setCode pred) function sets the host code to the code for the predica
         (global.set $HB (global.get $H))
     )
 
+    (func $put_constant (param $c i32) (param $reg i32)
+        (call $storeToRegister (local.get $reg) (call $tagConstant (local.get $c)))
+    )
+
+    (func $get_constant_addr (param $c i32) (param $addr i32)
+        (local $term i32) (local $tag i32)
+        (local.set $term (call $loadFromStore (local.get $addr)))
+        (local.set $tag (call $termTag (local.get $term)))
+        (if (i32.eq (global.get $TAG_REF) (local.get $tag))
+            (then
+                (call $storeToAddress (local.get $addr) (call $tagConstant (local.get $c)))
+                (call $trail (local.get $addr))
+            )
+            (else
+                (if (i32.eq (global.get $TAG_CON) (local.get $tag))
+                    (then
+                        (if (i32.ne (local.get $c) (call $termVal (local.get $term)))
+                            (then (global.set $fail (global.get $TRUE)))
+                            (else (global.set $fail (global.get $FALSE)))
+                        )
+                    )
+                    (else
+                        (global.set $fail (global.get $TRUE))
+                    )
+                )
+            )
+        )
+    )
+    (func $get_constant (param $c i32) (param $reg i32)
+        (local $addr i32)
+        (local.set $addr (call $deref (local.get $reg)))
+        (call $get_constant_addr (local.get $c) (local.get $addr))
+    )
+
+    (func $set_constant (param $c i32)
+        (call $storeConstantAtHeapTop (local.get $c))
+    )
+
+    (func $unify_constant (param $c i32)
+        (local $addr i32)
+        (if (i32.eq (global.get $mode) (global.get $READ_MODE))
+            (then
+                (local.set $addr (call $deref (global.get $S)))
+                (call $get_constant_addr (local.get $c) (local.get $addr))
+            )
+            (else ;; WRITE_MODE
+                (call $storeConstantAtHeapTop (local.get $c))
+            )
+        )
+    )
+
     (export "setH" (func $setH))
     (export "shiftTag" (func $shiftTag))
     (export "tagStructure" (func $tagStructure))
@@ -1141,6 +1251,10 @@ The (call $setCode pred) function sets the host code to the code for the predica
     (export "try_me_else_opcode" (func $try_me_else_opcode))
     (export "retry_me_else_opcode" (func $retry_me_else_opcode))
     (export "trust_me_opcode" (func $trust_me_opcode))
+    (export "put_constant_opcode" (func $put_constant_opcode))
+    (export "get_constant_opcode" (func $get_constant_opcode))
+    (export "set_constant_opcode" (func $set_constant_opcode))
+    (export "unify_constant_opcode" (func $unify_constant_opcode))
 
     (export "run" (func $run))
 )

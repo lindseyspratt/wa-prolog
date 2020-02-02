@@ -80,6 +80,10 @@
         return i;
     }
 
+    function find_atom(internalID) {
+        return atable[internalID];
+    }
+
     function lookupIndicator(name, arity) {
         let nameID = lookup_atom(name);
 
@@ -146,6 +150,10 @@
         opCodes.try_me_else = obj.instance.exports.try_me_else_opcode();
         opCodes.retry_me_else = obj.instance.exports.retry_me_else_opcode();
         opCodes.trust_me = obj.instance.exports.trust_me_opcode();
+        opCodes.put_constant = obj.instance.exports.put_constant_opcode();
+        opCodes.get_constant = obj.instance.exports.get_constant_opcode();
+        opCodes.set_constant = obj.instance.exports.set_constant_opcode();
+        opCodes.unify_constant = obj.instance.exports.unify_constant_opcode();
     }
 
     function getOpCodeName(opCode) {
@@ -159,18 +167,18 @@
         return 'undefined';
     }
 
-    function create_program_4_4_p_2() {
+    function create_program_4_4_p_2_a() {
         // p(X, a).
         // p(b, X).
         // p(X, Y) :- p(X,a), p(b,Y).
         return process_labels([
             opCodes.try_me_else, {ref: 'L1'},                   // try_me_else, L1
             opCodes.get_variable, 0, 3, 1,                      // get_variable X3, A1
-            opCodes.get_structure, lookupIndicator("a", 0), 2,  // get_structure a/0, A2
+            opCodes.get_constant, lookup_atom("a"), 2,          // get_constant a, A2
             opCodes.proceed,                                    // proceed
             {label: 'L1'},
             opCodes.retry_me_else, {ref: 'L2'},                 // try_me_else, L2
-            opCodes.get_structure, lookupIndicator("b", 0), 1,  // get_structure b/0, A1
+            opCodes.get_constant, lookup_atom("b"), 1,          // get_constant b, A1
             opCodes.get_variable, 0, 3, 2,                      // get_variable X3, A2
             opCodes.proceed,                                    // proceed
             {label: 'L2'},
@@ -178,25 +186,25 @@
             opCodes.allocate, 1,                                // allocate, 1
             opCodes.get_variable, 0, 3, 1,                      // get_variable X3, A1
             opCodes.put_value, 0, 3, 1,                         // put_value X3, A1
-            opCodes.put_structure, lookupIndicator("a", 0), 2,  // put_variable Y2, A2
+            opCodes.put_constant, lookup_atom("a"), 2,          // put_constant a, A2
             opCodes.call, lookupIndicator("p", 2),              // call p/2
-            opCodes.put_structure, lookupIndicator("b", 0), 1,  // put_structure b/0, A1
+            opCodes.put_constant, lookup_atom("b"), 1,          // put_constant b, A1
             opCodes.put_value, 1, 1, 2,                         // put_value Y1, A2
             opCodes.call, lookupIndicator("p", 2),              // call p/2
             opCodes.deallocate                                  // deallocate
         ]);
     }
 
-    function create_query_4_4() {
+    function create_query_4_4_a() {
         // ?- p(c,d).
         return [
-            opCodes.put_structure, lookupIndicator("c", 0), 1,  // put_structure, c/0,A1
-            opCodes.put_structure, lookupIndicator("d", 0), 2,  // put_structure, d/0,A2
+            opCodes.put_constant, lookup_atom("c"), 1,          // put_constant, c,A1
+            opCodes.put_constant, lookup_atom("d"), 2,          // put_constant, d,A2
             opCodes.call, lookupIndicator("p", 2)               // call p/2
         ];
     }
 
-    function test_query_4_4() {
+    function test_query_4_4_a() {
 
         fetch('build/wam/language3a.wasm').then(response =>
             response.arrayBuffer()
@@ -206,9 +214,9 @@
             initialize_op_codes(obj);
 
             programs = [];
-            programs[lookupIndicator("p", 2)] = create_program_4_4_p_2();
+            programs[lookupIndicator("p", 2)] = create_program_4_4_p_2_a();
 
-            code = create_query_4_4();
+            code = create_query_4_4_a();
             let i32Initial = new Uint32Array(memory.buffer);
             for(let i = 0; i < MIN_HEAP + 100;i++) {
                 i32Initial[i] = 0;
@@ -284,6 +292,14 @@
                         nextItemOfst: itemOfst+1};
                 }
                 return interpret_memory_structure(results, result, get_val(indicatorTerm, structureWordOfst, itemOfst));
+            }
+            case TAG_CON: // CONstant: 'a' instead of a/0.
+            {
+                let internalID = get_val(word);
+                let constant = find_atom(internalID);
+                let result = '';
+                result +=  "'" + constant + "'";
+                return {string: result, nextItemOfst: itemOfst+1};
             }
             default:
             {
@@ -366,7 +382,7 @@
 <body>
 <div id="tests">
     <ul>
-        <li><button onclick="test_query_4_4();">test_query_4_4</button></li>
+        <li><button onclick="test_query_4_4_a();">test_query_4_4_a</button></li>
     </ul>
 </div>
 <div id="display">
