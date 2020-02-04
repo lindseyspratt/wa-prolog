@@ -1308,6 +1308,37 @@ The (call $setCode pred) function sets the host code to the code for the predica
         (return (global.get $FALSE))                    ;; return fail is false.
     )
 
+    (func $set_void (param $n i32)
+        (local $i )
+        (local.set $i (global.get $H))
+        (local.set $limit (i32.add (global.get $H) (i32.sub (local.get $n) (i32.const 1)))) ;; $limit = $H + $n - 1.
+        (if (i32.le_u (local.get $i) (local.get $limit))
+            (then
+                (block
+                    (loop
+                        (call $storeToHeap
+                            (local.get $i)
+                            (call $tagReference (local.get $i)))
+                        (br_if 1 (i32.eq (local.get $i) (local.get $limit)))
+                        (local.set $i (i32.add (local.get $i) (i32.const 1)))
+                        (br 0)
+                    )
+                )
+            )
+        )
+        (call $addToH (local.get $n))
+    )
+
+    (func $unify_void (param $n i32)
+        (if (i32.eq (global.get $mode) (global.get $READ_MODE))
+            (then (global.set $S (i32.add (global.get $S) (local.get $n))))
+        (else ;; (if (i32.eq (global.get $mode) (global.get $WRITE_MODE))
+            ;;(then
+            call $set_void (local.get $n))
+            ;; ))
+        )
+    )
+
     (export "setH" (func $setH))
     (export "shiftTag" (func $shiftTag))
     (export "tagStructure" (func $tagStructure))
