@@ -55,6 +55,9 @@ The (call $setCode pred) function sets the host code to the code for the predica
     (import "js" "traceInstLog1" (func $traceInstLog1 (param i32) (param i32)))
     (import "js" "traceInstLog2" (func $traceInstLog2 (param i32) (param i32) (param i32)))
     (import "js" "traceInstLog3" (func $traceInstLog3 (param i32) (param i32) (param i32) (param i32)))
+    (import "js" "traceStoreZero" (func $traceStoreZero (param $addr i32)))
+    (import "js" "traceDerefZero" (func $traceDerefZero))
+    (import "js" "traceStoreTrailToReg" (func $traceStoreTrailToReg))
 
 ;;    (import "js" "consoleLog" (func $consoleLog (param i32)))
 
@@ -140,6 +143,11 @@ The (call $setCode pred) function sets the host code to the code for the predica
     )
     (func $tagConstant (param $val i32) (result i32)
         global.get $TAG_CON
+        local.get $val
+        call $applyTag
+    )
+    (func $tagList (param $val i32) (result i32)
+        global.get $TAG_LIS
         local.get $val
         call $applyTag
     )
@@ -247,6 +255,15 @@ The (call $setCode pred) function sets the host code to the code for the predica
     )
 
     (func $storeToAddress (param $addr i32) (param $val i32)
+        (if
+            (i32.eq (local.get $val) (i32.const 0))
+            (then (call $traceStoreZero (local.get $addr)))
+        (else (if (i32.and
+                        (i32.eq (local.get $addr) (i32.const 1)
+                        (i32.eq (local.get $val) (global.get $minTrail))))
+                    (then (call $traceStoreTrailToReg) )
+               )
+        ) )
         (i32.store (call $wordToByteOffset (local.get $addr)) (local.get $val))
     )
 
@@ -347,6 +364,9 @@ The (call $setCode pred) function sets the host code to the code for the predica
 
     (func $deref (param $addr i32) (result i32)
         (local $term i32)
+        (if (i32.eq (local.get $addr) (i32.const 0))
+            (then (call $traceDerefZero))
+        )
         (local.set $term (call $loadFromStore (local.get $addr)) )
         (if (result i32)
             (i32.and
@@ -615,7 +635,7 @@ The (call $setCode pred) function sets the host code to the code for the predica
                 )
             )
             (then
-                (call $storeToTrail (local.get $a) (global.get $TR))
+                (call $storeToTrail (global.get $TR) (local.get $a))
                 (call $addToTR (i32.const 1))
             )
         )
@@ -705,6 +725,8 @@ The (call $setCode pred) function sets the host code to the code for the predica
     (func $get_constant_opcode (result i32) (i32.const 19))
     (func $set_constant_opcode (result i32) (i32.const 20))
     (func $unify_constant_opcode (result i32) (i32.const 21))
+    (func $put_list_opcode (result i32) (i32.const 22))
+    (func $get_list_opcode (result i32) (i32.const 23))
 
     (func $evalOp (param $op i32)
         (block
@@ -729,7 +751,9 @@ The (call $setCode pred) function sets the host code to the code for the predica
         (block
         (block
         (block
-            (br_table 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 (local.get $op))
+        (block
+        (block
+            (br_table 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 (local.get $op))
             ) ;; 0
             (call $op0) ;; nop
             return
@@ -795,6 +819,12 @@ The (call $setCode pred) function sets the host code to the code for the predica
             return
         ) ;; 21
             (call $op21) ;; $unify_constant
+            return
+        ) ;; 22
+            (call $op22) ;; $put_list
+            return
+        ) ;; 23
+            (call $op23) ;; $get_list
             return
   )
 
@@ -959,6 +989,21 @@ The (call $setCode pred) function sets the host code to the code for the predica
         )
     )
 
+    (func $op22 ;; put_list
+        (call $traceInst1 (i32.const 22))
+        (call $put_list (call $getCodeArg (i32.const 1)))
+        (call $addToP (i32.const 2))
+    )
+
+    (func $op23 ;; get_list
+        (call $traceInst1 (i32.const 23))
+        (call $get_list (call $getCodeArg (i32.const 1)))
+        (if (global.get $fail)
+            (then (call $backtrack))
+            (else (call $addToP (i32.const 2)))
+        )
+    )
+
     (func $putStructure (param $indicator i32) (param $reg i32)
         ;;call $storeStructureAtHeapTop ;; simplified out according to section 5.1.
 
@@ -1030,21 +1075,14 @@ The (call $setCode pred) function sets the host code to the code for the predica
         (local.set $term (call $loadFromStore (local.get $addr)))
         (local.set $tag (call $termTag (local.get $term)))
 
-        (block
-            (block
-                (block
-                    (br_table 0 1 2 (local.get $tag) )
-                )
-                ;; (local.get $tag) = 0 = (global.get $TAG_REF)
-                (global.set $fail (call $getStructureREF (local.get $indicator) (local.get $addr)))
-                return
-            )
-            ;; (local.get $tag) = 1 = (global.get $TAG_STR)
-            (global.set $fail (call $getStructureSTR (local.get $indicator) (call $termVal (local.get $term))))
-            return
-        )
-        ;; (local.get $tag) > 1 = failure
-        (global.set $fail (global.get $TRUE))
+        (if
+            (i32.eq (global.get $TAG_REF) (local.get $tag))
+            (then (global.set $fail (call $getStructureREF (local.get $indicator) (local.get $addr))))
+        (else (if
+            (i32.eq (global.get $TAG_STR) (local.get $tag))
+            (then (global.set $fail (call $getStructureSTR (local.get $indicator) (call $termVal (local.get $term)))))
+        (else (global.set $fail (global.get $TRUE)))
+        )))
     )
 
     (func $getStructureREF (param $indicator i32) (param $addr i32) (result i32)
@@ -1054,7 +1092,7 @@ The (call $setCode pred) function sets the host code to the code for the predica
         (call $storeToHeap (local.get $nextH) (call $tagPredicate (local.get $indicator)) )         ;; HEAP[nextH􏰌]􏰃 <- <PRE, f/n>
         (call $bind (local.get $addr) (global.get $H))                              ;; bind(addr, H)
         (call $addToH (i32.const 2))                                                ;; H <- H+2
-        (global.set $S (global.get $H))                                             ;; S <- H (H is the location where the first argument of the structure will be stored).
+        (global.set $S (local.get $nextH))                                         ;; S <- H+1 (H+1 is the location where the first argument of the structure will be stored).
         (global.set $mode (global.get $WRITE_MODE))                                 ;; mode <- write
 
         (return (global.get $FALSE)) ;; 'fail' is false.
@@ -1113,9 +1151,17 @@ The (call $setCode pred) function sets the host code to the code for the predica
     )
 
     (func $proceed
-        (global.set $P (global.get $CP))
         (global.set $PPred (global.get $CPPred))
-        (call $setCode (global.get $PPred))
+        (if (i32.gt_s (global.get $PPred) (i32.const -1))
+            (then
+                (call $setCode (global.get $PPred))
+                (global.set $P (global.get $CP))
+            )
+            (else
+                (global.set $P (i32.const -1)) ;; halt WAM
+            )
+        )
+
     )
 
     (func $allocate (param $N i32)
@@ -1203,27 +1249,63 @@ The (call $setCode pred) function sets the host code to the code for the predica
             )
         )
     )
-    (func $get_constant (param $c i32) (param $reg i32)
+    (func $get_constant (param $c i32) (param $regOrS i32)
         (local $addr i32)
-        (local.set $addr (call $deref (local.get $reg)))
+        (local.set $addr (call $deref (local.get $regOrS)))
         (call $get_constant_addr (local.get $c) (local.get $addr))
     )
 
     (func $set_constant (param $c i32)
         (call $storeConstantAtHeapTop (local.get $c))
+        (call $addToH (i32.const 1))
     )
 
     (func $unify_constant (param $c i32)
-        (local $addr i32)
         (if (i32.eq (global.get $mode) (global.get $READ_MODE))
             (then
-                (local.set $addr (call $deref (global.get $S)))
-                (call $get_constant_addr (local.get $c) (local.get $addr))
+                (call $get_constant (local.get $c) (global.get $S))
             )
             (else ;; WRITE_MODE
-                (call $storeConstantAtHeapTop (local.get $c))
+                (call $set_constant (local.get $c))
             )
         )
+    )
+
+    (func $put_list (param $reg i32)
+        (call $storeToRegister (local.get $reg) (call $tagList (global.get $H)))
+    )
+
+    (func $get_list (param $reg i32)
+        (local $addr i32) (local $term i32) (local $tag i32)
+        (local.set $addr (call $deref (local.get $reg)))
+        (local.set $term (call $loadFromStore (local.get $addr)))
+        (local.set $tag (call $termTag (local.get $term)))
+
+        (if
+            (i32.eq (global.get $TAG_REF) (local.get $tag))
+            (then (global.set $fail (call $getListREF (local.get $addr))))
+        (else (if
+            (i32.eq (global.get $TAG_LIS) (local.get $tag))
+            (then (global.set $fail (call $getListLIS (call $termVal (local.get $term)))))
+        (else (global.set $fail (global.get $TRUE)))
+        )))
+    )
+    (func $getListREF (param $addr i32) (result i32)
+        (local $nextH i32)
+        (local.set $nextH (call $increment (global.get $H)))                    ;; nextH <- H + 1
+        (call $storeToHeap (global.get $H) (call $tagList (local.get $nextH)))  ;; HEAP[H]􏰃 <- <STR, nextH>
+        (call $bind (local.get $addr) (global.get $H))                          ;; bind(addr, H)
+        (call $addToH (i32.const 1))                                            ;; H <- H+2
+        (global.set $S (local.get $nextH))                                     ;; S <- H+1 (H+1 is the location where the first argument of the list will be stored).
+        (global.set $mode (global.get $WRITE_MODE))                             ;; mode <- write
+
+        (return (global.get $FALSE)) ;; 'fail' is false.
+    )
+
+    (func $getListLIS (param $a i32) (result i32)
+        (global.set $S (local.get $a))                  ;; S􏰃 <- a
+        (global.set $mode (global.get $READ_MODE))      ;; mode <- READ
+        (return (global.get $FALSE))                    ;; return fail is false.
     )
 
     (export "setH" (func $setH))
@@ -1255,6 +1337,7 @@ The (call $setCode pred) function sets the host code to the code for the predica
     (export "get_constant_opcode" (func $get_constant_opcode))
     (export "set_constant_opcode" (func $set_constant_opcode))
     (export "unify_constant_opcode" (func $unify_constant_opcode))
-
+    (export "put_list_opcode" (func $put_list_opcode))
+    (export "get_list_opcode" (func $get_list_opcode))
     (export "run" (func $run))
 )
