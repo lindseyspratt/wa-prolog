@@ -159,6 +159,8 @@
         opCodes.unify_constant = obj.instance.exports.unify_constant_opcode();
         opCodes.put_list = obj.instance.exports.put_list_opcode();
         opCodes.get_list = obj.instance.exports.get_list_opcode();
+        opCodes.set_void = obj.instance.exports.set_void_opcode();
+        opCodes.unify_void = obj.instance.exports.unify_void_opcode();
     }
 
     function getOpCodeName(opCode) {
@@ -290,6 +292,52 @@
             let i32 = new Uint32Array(memory.buffer);
 
             display_results('test query5_4', i32, MIN_HEAP, 16);
+        });
+    }
+
+    function create_query_5_7() {
+        // ?- p(X,Y,Z).
+        return [
+            opCodes.put_variable, 0, 4, 1, // put_variable X4, A1
+            opCodes.put_variable, 0, 5, 2, // put_variable X5, A2
+            opCodes.put_variable, 0, 6, 3, // put_variable X6, A3
+            opCodes.call, lookupIndicator("p", 3)
+        ];
+    }
+
+    function create_program_5_7() {
+        // p(_, g(X), f(_, Y, _)).
+        return [
+            opCodes.get_structure, lookupIndicator("g", 1), 2,  // get_structure g/1, A2
+            opCodes.unify_void, 1,                              // unify_void 1
+            opCodes.get_structure, lookupIndicator("f", 3), 3,  // get_structure f/3, A3
+            opCodes.unify_void, 3,                              // unify_void 3
+            opCodes.proceed                                     // proceed
+        ];
+    }
+
+    function test_query_5_7() {
+
+        fetch('build/wam/language3a.wasm').then(response =>
+            response.arrayBuffer()
+        ).then(bytes =>
+            WebAssembly.instantiate(bytes, importObject)
+        ).then(obj => {
+            initialize_op_codes(obj);
+
+            programs = [];
+            programs[lookupIndicator("p", 3)] = create_program_5_7();
+
+            code = create_query_5_7();
+            let i32Initial = new Uint32Array(memory.buffer);
+            for(let i = 0; i < MIN_HEAP + 100;i++) {
+                i32Initial[i] = 0;
+            }
+
+            obj.instance.exports.run(0);
+            let i32 = new Uint32Array(memory.buffer);
+
+            display_results('test query5_7', i32, MIN_HEAP, 16);
         });
     }
 
@@ -511,6 +559,7 @@
     <ul>
         <li><button onclick="test_query_4_4_a();">test_query_4_4_a</button></li>
         <li><button onclick="test_query_5_4();">test_query_5_4</button></li>
+        <li><button onclick="test_query_5_7();">test_query_5_7</button></li>
     </ul>
 </div>
 <div id="display">

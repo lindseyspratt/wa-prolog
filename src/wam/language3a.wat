@@ -727,6 +727,8 @@ The (call $setCode pred) function sets the host code to the code for the predica
     (func $unify_constant_opcode (result i32) (i32.const 21))
     (func $put_list_opcode (result i32) (i32.const 22))
     (func $get_list_opcode (result i32) (i32.const 23))
+    (func $set_void_opcode (result i32) (i32.const 24))
+    (func $unify_void_opcode (result i32) (i32.const 25))
 
     (func $evalOp (param $op i32)
         (block
@@ -753,7 +755,9 @@ The (call $setCode pred) function sets the host code to the code for the predica
         (block
         (block
         (block
-            (br_table 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 (local.get $op))
+        (block
+        (block
+            (br_table 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 (local.get $op))
             ) ;; 0
             (call $op0) ;; nop
             return
@@ -825,6 +829,12 @@ The (call $setCode pred) function sets the host code to the code for the predica
             return
         ) ;; 23
             (call $op23) ;; $get_list
+            return
+        ) ;; 24
+            (call $op24) ;; $set_void
+            return
+        ) ;; 25
+            (call $op25) ;; $unify_void
             return
   )
 
@@ -1002,6 +1012,18 @@ The (call $setCode pred) function sets the host code to the code for the predica
             (then (call $backtrack))
             (else (call $addToP (i32.const 2)))
         )
+    )
+
+    (func $op24 ;; set_void
+        (call $traceInst1 (i32.const 24))
+        (call $set_void (call $getCodeArg (i32.const 1)))
+        (call $addToP (i32.const 2))
+    )
+
+    (func $op25 ;; unify_void
+        (call $traceInst1 (i32.const 25))
+        (call $unify_void (call $getCodeArg (i32.const 1)))
+        (call $addToP (i32.const 2))
     )
 
     (func $putStructure (param $indicator i32) (param $reg i32)
@@ -1309,7 +1331,8 @@ The (call $setCode pred) function sets the host code to the code for the predica
     )
 
     (func $set_void (param $n i32)
-        (local $i )
+        (local $i i32)
+        (local $limit i32)
         (local.set $i (global.get $H))
         (local.set $limit (i32.add (global.get $H) (i32.sub (local.get $n) (i32.const 1)))) ;; $limit = $H + $n - 1.
         (if (i32.le_u (local.get $i) (local.get $limit))
@@ -1334,9 +1357,9 @@ The (call $setCode pred) function sets the host code to the code for the predica
             (then (global.set $S (i32.add (global.get $S) (local.get $n))))
         (else ;; (if (i32.eq (global.get $mode) (global.get $WRITE_MODE))
             ;;(then
-            call $set_void (local.get $n))
+            (call $set_void (local.get $n))
             ;; ))
-        )
+        ))
     )
 
     (export "setH" (func $setH))
@@ -1370,5 +1393,8 @@ The (call $setCode pred) function sets the host code to the code for the predica
     (export "unify_constant_opcode" (func $unify_constant_opcode))
     (export "put_list_opcode" (func $put_list_opcode))
     (export "get_list_opcode" (func $get_list_opcode))
+    (export "set_void_opcode" (func $set_void_opcode))
+    (export "unify_void_opcode" (func $unify_void_opcode))
+
     (export "run" (func $run))
 )
