@@ -100,6 +100,7 @@ The (call $setCode pred) function sets the host code to the code for the predica
     (global $HB (mut i32) (i32.const -1))
     (global $TR (mut i32) (global.get $minTrail))
     (global $num_of_args (mut i32) (i32.const -1))
+    (global $inferences (mut i32) (i32.const 0))
 
     (global $ECE i32 (i32.const 0))          ;; Continuation Environment
     (global $ECP i32 (i32.const 1))          ;; Continuation Program-instruction.
@@ -230,6 +231,14 @@ The (call $setCode pred) function sets the host code to the code for the predica
         (if (i32.gt_u (global.get $TR) (global.get $maxTrail))
             (then (call $warnMaxTrail (global.get $TR) (global.get $maxTrail)))
         )
+    )
+
+    (func $incrementInferences
+        (global.set $inferences (i32.add (global.get $inferences) (i32.const 1)))
+    )
+
+    (func $getInferences (result i32)
+        (global.get $inferences)
     )
     (func $getCodeArg (param $val i32) (result i32)
         (call $getCode (i32.add (global.get $P) (local.get $val)))
@@ -677,6 +686,22 @@ The (call $setCode pred) function sets the host code to the code for the predica
             )
         )
     )
+
+    (func $initialize_globals
+        (global.set $H (global.get $minHeap)) ;; $H is the current top of the heap.
+        (global.set $P (i32.const -1)) ;; $P is the 'program' instruction counter. The instruction is at (call $getCode (global.get $P)).
+        (global.set $PPred (i32.const -1)) ;; $PPred is the predicate code identifier for the current code. This identifier is used to set the host 'code' that is referenced be getCode func.
+        (global.set $PDL (i32.const -1)) ;; $PDL is offset of the top of a push down list for use in unification.
+        (global.set $S (i32.const 0)) ;; $S is current structure argument address (on heap). Used when $mode = $READ_MODE.
+        (global.set $CP (i32.const 0)) ;; $CP is the Continuation Program instruction counter - to continue after returning from a call.
+        (global.set $CPPred (i32.const 0)) ;; $CPPred is the predicate code identifier for the continuation code. This identifier is used to set the host 'code' that is referenced be getCode func.
+        (global.set $E (global.get $minStack)) ;; $E is the Environment location in the Stack.
+        (global.set $B (global.get $minStack)) ;; $B is the base of the current choicepoint frame - $B can never validly be $minStack, so when the backtrack func tries to 'go to' $minStack it terminates the WAM.
+        (global.set $HB (i32.const -1))
+        (global.set $TR (global.get $minTrail))
+        (global.set $num_of_args (i32.const -1))
+        (global.set $inferences (i32.const 0))
+    )
     (func $initialize_limits
         (global.set $maxRegister (global.get $registerSize))
         (global.set $maxStack (i32.add (global.get $minStack) (global.get $stackSize)))
@@ -700,6 +725,7 @@ The (call $setCode pred) function sets the host code to the code for the predica
     ;; this $CP==-1 value and copy it to $P, which halts the evalLoop.
 
     (func $run
+        (call $initialize_globals)
         (call $initialize_limits)
         (call $initialize_environment)
         (global.set $PPred (i32.const -1))
@@ -1196,6 +1222,7 @@ The (call $setCode pred) function sets the host code to the code for the predica
     )
 
     (func $proceed
+        (call $incrementInferences)
         (global.set $PPred (global.get $CPPred))
         (if (i32.gt_s (global.get $PPred) (i32.const -1))
             (then
@@ -1217,6 +1244,7 @@ The (call $setCode pred) function sets the host code to the code for the predica
     )
 
     (func $deallocate
+        (call $incrementInferences)
         (global.set $PPred (call $loadFromStack (i32.add (global.get $E) (global.get $ECPPred)) ))
         (if (i32.eq (global.get $PPred) (i32.const -1))
             (then (global.set $P (i32.const -1))) ;; causes evalLoop to halt.
@@ -1394,6 +1422,7 @@ The (call $setCode pred) function sets the host code to the code for the predica
     (export "getStructure" (func $getStructure))
     (export "addToH" (func $addToH))
     (export "bind" (func $bind))
+    (export "getInferences" (func $getInferences))
 
     (export "nop_opcode" (func $nop_opcode))
     (export "put_structure_opcode" (func $put_structure_opcode))

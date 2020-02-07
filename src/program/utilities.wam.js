@@ -144,22 +144,21 @@ function process_labels(program) {
     return result;
 }
 
-function runQuery(label, queryCode, obj) {
-    let total = 0;
- //   for(let i = 0;i < 5;i++) {
-        let i32Initial = new Uint32Array(memory.buffer);
-        for(let i = 0; i < MIN_HEAP + 1000;i++) {
-            i32Initial[i] = 0;
-        }
+function runQuery(limit, queryCode, obj) {
+    let inferences = 0;
+    let i32Initial = new Uint32Array(memory.buffer);
+    for(let i = 0; i < MIN_HEAP + 1000;i++) {
+        i32Initial[i] = 0;
+    }
+    let start = Date.now();
+    for(let i = 0;i < limit;i++) {
         code = queryCode;
-        let start = Date.now();
         obj.instance.exports.run(0);
-        let end = Date.now();
-        total += (end - start);
- //   }
-    let durationSec = total / 1000;
-    let lips = 496 / durationSec;
-    alert("LIPS = " + lips + ". Duration(sec) = " + durationSec);
+        inferences += obj.instance.exports.getInferences();
+    }
+    let end = Date.now();
+    let total = (end - start);
+    return {duration:total, inferences:inferences};
 }
 
 let opCodes = {};
