@@ -204,11 +204,13 @@ function getOpCodeName(opCode) {
 }
 
 
-function display_results(test, length) {
+function display_results(test, length, stats) {
     let results = new Uint32Array(memory.buffer);
     let startingWord = MIN_HEAP;
     let element1 = document.getElementById('testName');
     element1.innerText = 'Test: ' + test;
+    let elementStats = document.getElementById('stats');
+    elementStats.innerText = JSON.stringify(stats);
     let element2 = document.getElementById('result');
     element2.innerText = 'startingWord=' + startingWord + ': ' + JSON.stringify(results.slice(startingWord, startingWord+length));
     let element3 = document.getElementById('resultInterpretationRegisters');
