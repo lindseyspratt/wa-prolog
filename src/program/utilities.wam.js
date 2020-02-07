@@ -5,30 +5,32 @@ let code = [];
 let indicators = [];
 let programs = [];
 
-const MAX_REGISTER = 256;
-const PDL_START = (MAX_REGISTER+1) * 4;
-const MAX_PDL = 256;
-const MIN_STACK = MAX_REGISTER + MAX_PDL + 1;
+const REGISTER_SIZE = 256;
+const MIN_PDL = REGISTER_SIZE + 1;
+const PDL_START = MIN_PDL * 4;
+const PDL_SIZE = 256;
+const MIN_STACK = REGISTER_SIZE + PDL_SIZE + 1;
 const STACK_START = (MIN_STACK*4);
-const MAX_STACK = 128;
-const MIN_TRAIL = MAX_REGISTER + MAX_PDL + MAX_STACK + 1;
+const STACK_SIZE = 4096;
+const MIN_TRAIL = REGISTER_SIZE + PDL_SIZE + STACK_SIZE + 1;
 const TRAIL_START = (MIN_TRAIL*4);
-const MAX_TRAIL = 128;
-const MIN_HEAP = MAX_REGISTER + MAX_PDL + MAX_STACK + MAX_TRAIL + 1;
+const TRAIL_SIZE = 1024;
+const MIN_HEAP = REGISTER_SIZE + PDL_SIZE + STACK_SIZE + TRAIL_SIZE + 1;
 const HEAP_START = (MIN_HEAP*4);
 
 let importObject = {js:
         {mem: memory,
             table: table,
-            maxRegister: MAX_REGISTER,
+            registerSize: REGISTER_SIZE,
+            minPDL: MIN_PDL,
             pdlStart: PDL_START,
-            maxPDL: MAX_PDL,
+            pdlSize: PDL_SIZE,
             minStack: MIN_STACK,
             stackStart: STACK_START,
-            maxStack: MAX_STACK,
+            stackSize: STACK_SIZE,
             minTrail: MIN_TRAIL,
             trailStart: TRAIL_START,
-            maxTrail: MAX_TRAIL,
+            trailSize: TRAIL_SIZE,
             minHeap: MIN_HEAP,
             heapStart: HEAP_START,
             lookupAtom: lookupAtomWA,
@@ -42,7 +44,9 @@ let importObject = {js:
             traceStoreZero: traceStoreZero,
             traceDerefZero: traceDerefZero,
             traceStoreTrailToReg: traceStoreTrailToReg,
-            traceStore: traceStore
+            traceStore: traceStore,
+            warnMaxStack: warnMaxStack,
+            warnMaxTrail: warnMaxTrail,
         }};
 
 function lookupAtomWA(start, length){
@@ -68,6 +72,10 @@ function getIndicatorArityWA(indicator) {
 
 function lookup_atom(name)
 {
+    if(typeof name === 'number') {
+        name = Number(name).toString();
+    }
+
     if(typeof name !== 'string') {
         throw 'invalid lookup_atom. name must have type of string, but is ' + typeof name + '. name = ' + name;
     }
@@ -137,16 +145,21 @@ function process_labels(program) {
 }
 
 function runQuery(label, queryCode, obj) {
-    code = queryCode;
-    let i32Initial = new Uint32Array(memory.buffer);
-    for(let i = 0; i < MIN_HEAP + 100;i++) {
-        i32Initial[i] = 0;
-    }
-
-    obj.instance.exports.run(0);
-    //let i32 = new Uint32Array(memory.buffer);
-
-    //console_results(label, i32, MIN_HEAP, 16);
+    let total = 0;
+ //   for(let i = 0;i < 5;i++) {
+        let i32Initial = new Uint32Array(memory.buffer);
+        for(let i = 0; i < MIN_HEAP + 1000;i++) {
+            i32Initial[i] = 0;
+        }
+        code = queryCode;
+        let start = Date.now();
+        obj.instance.exports.run(0);
+        let end = Date.now();
+        total += (end - start);
+ //   }
+    let durationSec = total / 1000;
+    let lips = 496 / durationSec;
+    alert("LIPS = " + lips + ". Duration(sec) = " + durationSec);
 }
 
 let opCodes = {};
@@ -396,6 +409,14 @@ function traceStoreTrailToReg() {
 function traceStore(addr, val) {
     console.log ('    store ' + val + ' to ' + addr + '.')
 }
+function warnMaxStack(addr, max) {
+    console.log('warning: address ' + addr + ' exceeds max stack ' + max + '.');
+    alert('warning: address ' + addr + ' exceeds max stack ' + max + '.');
+}
+function warnMaxTrail(addr, max) {
+    console.log('warning: address ' + addr + ' exceeds max trail ' + max + '.');
+    alert('warning: address ' + addr + ' exceeds max trail ' + max + '.');
+}
 const TAG_REF = 0; // 0x00000000
 const TAG_STR = 1; // 0x08000000
 const TAG_LIS = 2; // 0x10000000
@@ -420,6 +441,15 @@ function get_val(p)
     return p & ((1 << WORD_BITS)-1);
 }
 
+// function displayProgram(codes) {
+//     for(let i = 0;i < codes.length;i++) {
+//         i = displayInstruction(i, codes);
+//     }
+// }
+//
+// function displayInstruction(i, codes) {
+//
+// }
 
 module.exports.importObject = importObject;
 module.exports.runQuery = runQuery;

@@ -187,9 +187,78 @@ function query2() {
 	]
 }
 
+/*
+put_list, 3,
+set_constant, N,
+set_constant, [],
+put_list, 4,
+set_constant, N-1,
+set_value, 3,
+put_list, 3,
+set_constant, N-2,
+set_value, 4,
+...
+put_list, 1,
+set_constant, 1,
+set_value, LAST
+set_variable, 2
+call nrev/2
+proceed
+
+ */
+
+function gen(arg, head, tail, n) {
+	let last = (n % 2 === 0) ? head : tail;
+
+	return [util.opCodes.put_list, head,
+		util.opCodes.set_constant, util.lookup_atom(n),
+		util.opCodes.set_constant, util.lookup_atom("[]")]
+		.concat(genBody(tail, head, n-1))
+		.concat([util.opCodes.put_list, arg,
+		util.opCodes.set_constant, util.lookup_atom(1),
+		util.opCodes.set_value, last])
+}
+function genBody(head, tail, n) {
+	if(n > 1) {
+		return [util.opCodes.put_list, head,
+			util.opCodes.set_constant, util.lookup_atom(n),
+			util.opCodes.set_value, tail]
+			.concat(genBody(tail, head, n - 1));
+	} else {
+		return [];
+	}
+}
+
+function query4() {
+	return gen(1, 3, 4, 4)
+		.concat([util.opCodes.set_variable, 2,
+			util.opCodes.call, util.lookupIndicator("nrev", 2),
+			util.opCodes.proceed
+		])
+}
+
+function query15() {
+	return gen(1, 3, 4, 15)
+		.concat([util.opCodes.set_variable, 2,
+			util.opCodes.call, util.lookupIndicator("nrev", 2),
+			util.opCodes.proceed
+		])
+}
+
+function query30() {
+	return gen(1, 3, 4, 30)
+		.concat([util.opCodes.set_variable, 2,
+			util.opCodes.call, util.lookupIndicator("nrev", 2),
+			util.opCodes.proceed
+		])
+}
+
 module.exports.nrevProgram = nrevProgram;
 module.exports.appendProgram = appendProgram;
 module.exports.queryNull = queryNull;
 module.exports.query1 = query1;
 module.exports.query2 = query2;
 module.exports.query3 = query3;
+module.exports.query4 = query4;
+module.exports.query15 = query15;
+module.exports.query30 = query30;

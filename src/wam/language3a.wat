@@ -36,15 +36,16 @@ The (call $setCode pred) function sets the host code to the code for the predica
 (module
     (import "js" "mem" (memory 1))
     (import "js" "table" (table 2 funcref))
-    (import "js" "maxRegister" (global $maxRegister i32))
+    (import "js" "registerSize" (global $registerSize i32))
+    (import "js" "minPDL" (global $minPDL i32))
     (import "js" "pdlStart" (global $pdlStart i32))
-    (import "js" "maxPDL" (global $maxPDL i32))
+    (import "js" "pdlSize" (global $pdlSize i32))
     (import "js" "stackStart" (global $stackStart i32))
     (import "js" "minStack" (global $minStack i32))
-    (import "js" "maxStack" (global $maxStack i32))
+    (import "js" "stackSize" (global $stackSize i32))
     (import "js" "trailStart" (global $trailStart i32))
     (import "js" "minTrail" (global $minTrail i32))
-    (import "js" "maxTrail" (global $maxTrail i32))
+    (import "js" "trailSize" (global $trailSize i32))
     (import "js" "heapStart" (global $heapStart i32))
     (import "js" "minHeap" (global $minHeap i32))
     (import "js" "lookupAtom" (func $lookupAtom (param i32) (param i32) (result i32)))
@@ -59,8 +60,15 @@ The (call $setCode pred) function sets the host code to the code for the predica
     (import "js" "traceDerefZero" (func $traceDerefZero))
     (import "js" "traceStoreTrailToReg" (func $traceStoreTrailToReg))
     (import "js" "traceStore" (func $traceStore (param i32) (param i32)))
+    (import "js" "warnMaxStack" (func $warnMaxStack (param i32) (param i32)))
+    (import "js" "warnMaxTrail" (func $warnMaxTrail (param i32) (param i32)))
 
 ;;    (import "js" "consoleLog" (func $consoleLog (param i32)))
+
+    (global $maxRegister (mut i32) (i32.const 0))
+    (global $maxPDL (mut i32) (i32.const 0))
+    (global $maxStack (mut i32) (i32.const 0))
+    (global $maxTrail (mut i32) (i32.const 0))
 
     (global $TAG_REF i32 (i32.const 0))
     (global $TAG_STR i32 (i32.const 1))
@@ -219,6 +227,9 @@ The (call $setCode pred) function sets the host code to the code for the predica
     )
     (func $addToTR (param $val i32)
         (global.set $TR (i32.add (global.get $TR) (local.get $val)))
+        (if (i32.gt_u (global.get $TR) (global.get $maxTrail))
+            (then (call $warnMaxTrail (global.get $TR) (global.get $maxTrail)))
+        )
     )
     (func $getCodeArg (param $val i32) (result i32)
         (call $getCode (i32.add (global.get $P) (local.get $val)))
@@ -244,11 +255,14 @@ The (call $setCode pred) function sets the host code to the code for the predica
     )
 
     (func $storeToHeap (param $addr i32) (param $val i32)
-         (call $storeToAddress (local.get $addr) (local.get $val))
+        (call $storeToAddress (local.get $addr) (local.get $val))
     )
 
     (func $storeToStack (param $addr i32) (param $val i32)
-         (call $storeToAddress (local.get $addr) (local.get $val))
+        (if (i32.gt_u (local.get $addr) (global.get $maxStack))
+            (then (call $warnMaxStack (local.get $addr) (global.get $maxStack)))
+        )
+        (call $storeToAddress (local.get $addr) (local.get $val))
     )
 
     (func $storeToTrail (param $addr i32) (param $val i32)
@@ -256,16 +270,16 @@ The (call $setCode pred) function sets the host code to the code for the predica
     )
 
     (func $storeToAddress (param $addr i32) (param $val i32)
-        (if
-            (i32.eq (local.get $val) (i32.const 0))
-            (then (call $traceStoreZero (local.get $addr)))
-        (else (if (i32.and
-                        (i32.eq (local.get $addr) (i32.const 1))
-                        (i32.eq (local.get $val) (global.get $minTrail)))
-                    (then (call $traceStoreTrailToReg) )
-               )
-        ) )
-        (call $traceStore (local.get $addr) (local.get $val))
+;;        (if
+;;            (i32.eq (local.get $val) (i32.const 0))
+;;            (then (call $traceStoreZero (local.get $addr)))
+;;        (else (if (i32.and
+;;                        (i32.eq (local.get $addr) (i32.const 1))
+;;                        (i32.eq (local.get $val) (global.get $minTrail)))
+;;                    (then (call $traceStoreTrailToReg) )
+;;               )
+;;        ) )
+;;        (call $traceStore (local.get $addr) (local.get $val))
         (i32.store (call $wordToByteOffset (local.get $addr)) (local.get $val))
     )
 
@@ -366,9 +380,9 @@ The (call $setCode pred) function sets the host code to the code for the predica
 
     (func $deref (param $addr i32) (result i32)
         (local $term i32)
-        (if (i32.eq (local.get $addr) (i32.const 0))
-            (then (call $traceDerefZero))
-        )
+;;        (if (i32.eq (local.get $addr) (i32.const 0))
+;;            (then (call $traceDerefZero))
+;;        )
         (local.set $term (call $loadFromStore (local.get $addr)) )
         (if (result i32)
             (i32.and
@@ -663,6 +677,12 @@ The (call $setCode pred) function sets the host code to the code for the predica
             )
         )
     )
+    (func $initialize_limits
+        (global.set $maxRegister (global.get $registerSize))
+        (global.set $maxStack (i32.add (global.get $minStack) (global.get $stackSize)))
+        (global.set $maxPDL (i32.add (global.get $minPDL) (global.get $pdlSize)))
+        (global.set $maxTrail (i32.add (global.get $minTrail) (global.get $trailSize)))
+    )
     (func $initialize_environment
         (call $storeToStack (global.get $minStack) (i32.const -1))
         (call $storeToStack (i32.add (global.get $minStack) (global.get $ECP)) (i32.const -1))
@@ -680,6 +700,7 @@ The (call $setCode pred) function sets the host code to the code for the predica
     ;; this $CP==-1 value and copy it to $P, which halts the evalLoop.
 
     (func $run
+        (call $initialize_limits)
         (call $initialize_environment)
         (global.set $PPred (i32.const -1))
         (global.set $P (i32.const 0))
@@ -841,16 +862,16 @@ The (call $setCode pred) function sets the host code to the code for the predica
   )
 
     (func $traceInst0 (param $inst i32)
-        (call $traceInstLog0 (local.get $inst) )
+        ;; (call $traceInstLog0 (local.get $inst) )
     )
     (func $traceInst1 (param $inst i32)
-        (call $traceInstLog1 (local.get $inst) (call $getCodeArg (i32.const 1)))
+        ;; (call $traceInstLog1 (local.get $inst) (call $getCodeArg (i32.const 1)))
     )
     (func $traceInst2 (param $inst i32)
-        (call $traceInstLog2 (local.get $inst) (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
+        ;; (call $traceInstLog2 (local.get $inst) (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
     )
     (func $traceInst3 (param $inst i32)
-        (call $traceInstLog3 (local.get $inst) (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)) (call $getCodeArg (i32.const 3)))
+        ;; (call $traceInstLog3 (local.get $inst) (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)) (call $getCodeArg (i32.const 3)))
     )
 
     ;; trace: nop
@@ -860,44 +881,44 @@ The (call $setCode pred) function sets the host code to the code for the predica
 
     ;; trace: put_structure, A1, A2
     (func $op1 ;; $putStructure
-        (call $traceInst2 (i32.const 1))
+        ;; (call $traceInst2 (i32.const 1))
         (call $putStructure (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
         (call $addToP (i32.const 3))
     )
 
     ;; trace: setVariable, A1
     (func $op2 ;; setVariable
-        (call $traceInst1 (i32.const 2))
+        ;; (call $traceInst1 (i32.const 2))
         (call $setVariable (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op3 ;; putVariable
-        (call $traceInst3 (i32.const 3))
+        ;; (call $traceInst3 (i32.const 3))
         (call $putVariable (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)) (call $getCodeArg (i32.const 3)))
         (call $addToP (i32.const 4))
     )
 
     (func $op4 ;; getVariable X/Ytype, permanent or temporary target register ID, source (argument temporary) register ID
-        (call $traceInst3 (i32.const 4))
+        ;; (call $traceInst3 (i32.const 4))
         (call $getVariable (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)) (call $getCodeArg (i32.const 3)))
         (call $addToP (i32.const 4))
     )
 
     (func $op5 ;; setValue
-        (call $traceInst1 (i32.const 5))
+        ;; (call $traceInst1 (i32.const 5))
         (call $setValue (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op6 ;; putValue
-        (call $traceInst3 (i32.const 6))
+        ;; (call $traceInst3 (i32.const 6))
         (call $putValue (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)) (call $getCodeArg (i32.const 3)))
         (call $addToP (i32.const 4))
     )
 
     (func $op7 ;; getValue
-        (call $traceInst2 (i32.const 7))
+        ;; (call $traceInst2 (i32.const 7))
         (call $getValue (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
         (if (global.get $fail)
             (then (call $backtrack))
@@ -906,7 +927,7 @@ The (call $setCode pred) function sets the host code to the code for the predica
     )
 
     (func $op8 ;; getStructure
-        (call $traceInst2 (i32.const 8))
+        ;; (call $traceInst2 (i32.const 8))
         (call $getStructure (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
         (if (global.get $fail)
             (then (call $backtrack))
@@ -915,13 +936,13 @@ The (call $setCode pred) function sets the host code to the code for the predica
     )
 
     (func $op9 ;; unifyVariable
-        (call $traceInst1 (i32.const 9))
+        ;; (call $traceInst1 (i32.const 9))
         (call $unifyVariable (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op10 ;; unifyValue
-        (call $traceInst1 (i32.const 10))
+        ;; (call $traceInst1 (i32.const 10))
         (call $unifyValue (call $getCodeArg (i32.const 1)))
         (if (global.get $fail)
             (then (call $backtrack))
@@ -930,55 +951,55 @@ The (call $setCode pred) function sets the host code to the code for the predica
     )
 
     (func $op11 ;; call
-        (call $traceInst1 (i32.const 11))
+        ;; (call $traceInst1 (i32.const 11))
         (call $call (call $getCodeArg (i32.const 1)))
         ;; call manages $P directly, resetting it to 0 for the new 'code' for the new predicate.
     )
 
     (func $op12 ;; proceed
-        (call $traceInst0 (i32.const 12))
+        ;; (call $traceInst0 (i32.const 12))
         (call $proceed)
         ;; proceed manages $P directly, resetting it to $CP.
     )
 
     (func $op13 ;; allocate
-        (call $traceInst1 (i32.const 13))
+        ;; (call $traceInst1 (i32.const 13))
         (call $allocate (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op14 ;; deallocate
-        (call $traceInst0 (i32.const 14))
+        ;; (call $traceInst0 (i32.const 14))
         (call $deallocate)
         ;; deallocate manages $P directly, resetting it to STACK[$E + $ECP].
     )
 
     (func $op15 ;; try_me_else
-        (call $traceInst1 (i32.const 15))
+        ;; (call $traceInst1 (i32.const 15))
         (call $try_me_else (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op16 ;; retry_me_else
-        (call $traceInst1 (i32.const 16))
+        ;; (call $traceInst1 (i32.const 16))
         (call $retry_me_else (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op17 ;; trust_me
-        (call $traceInst0 (i32.const 17))
+        ;; (call $traceInst0 (i32.const 17))
         (call $trust_me)
         (call $addToP (i32.const 1))
     )
 
     (func $op18 ;; put_constant
-        (call $traceInst2 (i32.const 18))
+        ;; (call $traceInst2 (i32.const 18))
         (call $put_constant (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
         (call $addToP (i32.const 3))
     )
 
     (func $op19 ;; get_constant
-        (call $traceInst2 (i32.const 19))
+        ;; (call $traceInst2 (i32.const 19))
         (call $get_constant (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
         (if (global.get $fail)
             (then (call $backtrack))
@@ -987,13 +1008,13 @@ The (call $setCode pred) function sets the host code to the code for the predica
     )
 
     (func $op20 ;; set_constant
-        (call $traceInst1 (i32.const 20))
+        ;; (call $traceInst1 (i32.const 20))
         (call $set_constant (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op21 ;; unify_constant
-        (call $traceInst1 (i32.const 21))
+        ;; (call $traceInst1 (i32.const 21))
         (call $unify_constant (call $getCodeArg (i32.const 1)))
         (if (global.get $fail)
             (then (call $backtrack))
@@ -1002,13 +1023,13 @@ The (call $setCode pred) function sets the host code to the code for the predica
     )
 
     (func $op22 ;; put_list
-        (call $traceInst1 (i32.const 22))
+        ;; (call $traceInst1 (i32.const 22))
         (call $put_list (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op23 ;; get_list
-        (call $traceInst1 (i32.const 23))
+        ;; (call $traceInst1 (i32.const 23))
         (call $get_list (call $getCodeArg (i32.const 1)))
         (if (global.get $fail)
             (then (call $backtrack))
@@ -1017,13 +1038,13 @@ The (call $setCode pred) function sets the host code to the code for the predica
     )
 
     (func $op24 ;; set_void
-        (call $traceInst1 (i32.const 24))
+        ;; (call $traceInst1 (i32.const 24))
         (call $set_void (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op25 ;; unify_void
-        (call $traceInst1 (i32.const 25))
+        ;; (call $traceInst1 (i32.const 25))
         (call $unify_void (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
