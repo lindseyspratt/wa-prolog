@@ -161,8 +161,9 @@
             opCodes.trust_me,
             opCodes.allocate, 1,                                // allocate, 1
             opCodes.get_variable, 0, 3, 1,                      // get_variable X3, A1
+            opCodes.get_variable, 1, 1, 2,                      // get_variable Y1, A2
             opCodes.put_value, 0, 3, 1,                         // put_value X3, A1
-            opCodes.put_structure, lookupIndicator("a", 0), 2,  // put_variable Y2, A2
+            opCodes.put_structure, lookupIndicator("a", 0), 2,  // put_structure a/0, A2
             opCodes.call, lookupIndicator("p", 2),              // call p/2
             opCodes.put_structure, lookupIndicator("b", 0), 1,  // put_structure b/0, A1
             opCodes.put_value, 1, 1, 2,                         // put_value Y1, A2

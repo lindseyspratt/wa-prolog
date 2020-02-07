@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>nrev/2 WAM3a</title>
+</head>
+<body>
+<div id="tests">
+    <ul>
+        <li><button onclick="query();">query</button></li>
+    </ul>
+</div>
+<div id="display">
+    <div id="testName">
+
+    </div>
+    <br>
+    <br>
+    <div id="result">
+
+    </div>
+    <br>
+    <br>
+    <div id="resultInterpretationRegisters">
+
+    </div>
+    <br>
+    <br>
+    <div id="resultInterpretationHeap">
+
+    </div>
+</div>
+
+
+<script src="build/program/nrev.js"></script>
+<script>
+    let nrev = require('nrev');
+    let util = require('utilities');
+
+    function query() {
+
+        fetch('build/wam/language3a.wasm').then(response =>
+            response.arrayBuffer()
+        ).then(bytes =>
+            WebAssembly.instantiate(bytes, util.importObject)
+        ).then(res => {
+            util.initialize_op_codes(res);
+
+            util.registerProgram(util.lookupIndicator('nrev', 2), nrev.nrevProgram());
+            util.registerProgram(util.lookupIndicator('append', 3), nrev.appendProgram());
+
+            util.runQuery('nrev', nrev.query2(), res);
+
+            util.display_results('test query', 16);
+        });
+    }
+
+</script>
+</body>
+</html>

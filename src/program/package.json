@@ -1,0 +1,11 @@
+{
+  "name": "wa-prolog",
+  "version": "1.0.0",
+  "dependencies": {
+    "browserify": "14.5.0"
+  },
+  "scripts": {
+    "build-nrev": "../../node_modules/.bin/browserify -r ./nrev.wam.js:nrev -r ./utilities.wam.js:utilities > ../../build/program/nrev.js",
+    "build-util": "../../node_modules/.bin/browserify -r ./utilities.wam.js:utilities > ../../build/program/util.js"
+  }
+}

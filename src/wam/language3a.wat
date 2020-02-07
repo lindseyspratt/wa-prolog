@@ -58,6 +58,7 @@ The (call $setCode pred) function sets the host code to the code for the predica
     (import "js" "traceStoreZero" (func $traceStoreZero (param $addr i32)))
     (import "js" "traceDerefZero" (func $traceDerefZero))
     (import "js" "traceStoreTrailToReg" (func $traceStoreTrailToReg))
+    (import "js" "traceStore" (func $traceStore (param i32) (param i32)))
 
 ;;    (import "js" "consoleLog" (func $consoleLog (param i32)))
 
@@ -259,11 +260,12 @@ The (call $setCode pred) function sets the host code to the code for the predica
             (i32.eq (local.get $val) (i32.const 0))
             (then (call $traceStoreZero (local.get $addr)))
         (else (if (i32.and
-                        (i32.eq (local.get $addr) (i32.const 1)
-                        (i32.eq (local.get $val) (global.get $minTrail))))
+                        (i32.eq (local.get $addr) (i32.const 1))
+                        (i32.eq (local.get $val) (global.get $minTrail)))
                     (then (call $traceStoreTrailToReg) )
                )
         ) )
+        (call $traceStore (local.get $addr) (local.get $val))
         (i32.store (call $wordToByteOffset (local.get $addr)) (local.get $val))
     )
 
@@ -1197,7 +1199,10 @@ The (call $setCode pred) function sets the host code to the code for the predica
         (global.set $PPred (call $loadFromStack (i32.add (global.get $E) (global.get $ECPPred)) ))
         (if (i32.eq (global.get $PPred) (i32.const -1))
             (then (global.set $P (i32.const -1))) ;; causes evalLoop to halt.
-            (else (global.set $P (call $loadFromStack (i32.add (global.get $E) (global.get $ECP)) )) )
+            (else
+                (call $setCode (global.get $PPred))
+                (global.set $P (call $loadFromStack (i32.add (global.get $E) (global.get $ECP)) ))
+            )
         )
 
         (global.set $E (call $loadFromStack (global.get $E)))
