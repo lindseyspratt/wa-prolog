@@ -1,4 +1,4 @@
-const util = require('./utilities.wam.js');
+const util = require('./utilities.b.wam.js');
 /*
 nrev([],[]).
 
@@ -26,8 +26,8 @@ L:	trust_me ;; A1 -> [X4|X3], A2 -> Y2. X4 -> Y1, X3 -> A1, Y3 -> A2. Y1 -> X4, 
 	set_value 4       	//              X...X4
 	set_constant []   	//               ],
 	put_value 1, 2, 3   //                 Ans
-	call append/3       //                    )
-	deallocate          //                     .
+	deallocate          //
+	execute append/3    //                    )
 */
 
 function nrevProgram () {
@@ -53,8 +53,8 @@ function nrevProgram () {
 		util.opCodes.set_value, 4,
 		util.opCodes.set_constant, util.lookup_atom("[]"),
 		util.opCodes.put_value, 1, 2, 3,
-		util.opCodes.call, util.lookupIndicator("append", 3),
-		util.opCodes.deallocate
+		util.opCodes.deallocate,
+		util.opCodes.execute, util.lookupIndicator("append", 3),
 	]);
 }
 
@@ -82,6 +82,7 @@ append(A1, A2, A3) :-
 	get_value 4, 3
 	proceed
 L:	trust_me ;; A1 -> [X4|X5], (A2->A2), A3->[X4|X6]
+    allocate 0
 	get_list 1
 	unify_variable 4
 	unify_variable 5
@@ -90,9 +91,8 @@ L:	trust_me ;; A1 -> [X4|X5], (A2->A2), A3->[X4|X6]
 	unify_variable 6
 	put_value 0, 5, 1
 	put_value 0, 6, 3
-	call append/3
-	proceed
-
+	deallocate
+	execute append/3
  */
 
 function appendProgram () {
@@ -114,8 +114,8 @@ function appendProgram () {
 			util.opCodes.unify_variable, 6,
 			util.opCodes.put_value, 0, 5, 1,
 			util.opCodes.put_value, 0, 6, 3,
-			util.opCodes.call, util.lookupIndicator("append", 3),
-			util.opCodes.deallocate
+			util.opCodes.deallocate,
+			util.opCodes.execute, util.lookupIndicator("append", 3),
 		]
 	)
 }

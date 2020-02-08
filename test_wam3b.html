@@ -1,0 +1,102 @@
+<html lang="">
+<head>
+    <title>Web Assembly Wam Tests</title>
+<script src="build/program/util.b.js"></script>
+<script>
+    let util = require('utilities');
+
+    function create_program_5_9_p_2() {
+        // p(X, Y) :- q(X,Z), r(Z,Y).
+        return [
+            util.opCodes.allocate, 2, // allocate 2
+            util.opCodes.get_variable, 1, 1, 2, // get_variable Y1, A2
+            util.opCodes.put_variable, 1, 2, 2, // put_variable Y2, A2
+            util.opCodes.call, util.lookupIndicator("q", 2), // call q/2
+            util.opCodes.put_value, 1, 2, 1, // put_value Y2, A1
+            util.opCodes.put_value, 1, 1, 2, // put_value Y1, A2
+            util.opCodes.deallocate, // deallocate
+            util.opCodes.execute, util.lookupIndicator("r", 2), // execute r/2
+        ];
+    }
+
+    function create_query_5_9() {
+        // ?- p(X,Y).
+        return [
+            util.opCodes.put_variable, 0, 3, 1, // put_variable X3,A1
+            util.opCodes.put_variable, 0, 4, 2, // put_variable X4,A2
+            util.opCodes.call, util.lookupIndicator("p", 2) // call p/2
+        ];
+    }
+
+    function create_program_5_9_q_2 () {
+        // q(a, b)
+        return [
+            util.opCodes.get_constant, util.lookup_atom("a"), 1, // get_constant a, A1
+            util.opCodes.get_constant, util.lookup_atom("b"), 2, // get_constant b, A2
+            util.opCodes.proceed // proceed
+        ];
+    }
+
+    function create_program_5_9_r_2 () {
+        // r(b, c)
+        return [
+            util.opCodes.get_constant, util.lookup_atom("b"), 1, // get_constant b, A1
+            util.opCodes.get_constant, util.lookup_atom("c"), 2, // get_constant c, A2
+            util.opCodes.proceed // proceed
+        ];
+    }
+
+    function test_query_5_9() {
+
+        fetch('build/wam/language3b.wasm').then(response =>
+            response.arrayBuffer()
+        ).then(bytes =>
+            WebAssembly.instantiate(bytes, util.importObject)
+        ).then(obj => {
+            util.initialize_op_codes(obj);
+
+            util.registerProgram(util.lookupIndicator("p", 2), create_program_5_9_p_2());
+            util.registerProgram(util.lookupIndicator("q", 2), create_program_5_9_q_2());
+            util.registerProgram(util.lookupIndicator("r", 2), create_program_5_9_r_2());
+
+            let info = util.runQuery(1, create_query_5_9(), obj);
+
+            util.display_results('test query5_9', 16, info);
+        });
+    }
+
+</script>
+</head>
+<body>
+<div id="tests">
+    <ul>
+        <li><button onclick="test_query_5_9();">test_query_5_9</button></li>
+    </ul>
+</div>
+<div id="display">
+    <div id="testName">
+
+    </div>
+    <br>
+    <br>
+    <div id="stats">
+
+    </div>
+    <br>
+    <br>
+    <div id="result">
+
+    </div>
+    <br>
+    <br>
+    <div id="resultInterpretationRegisters">
+
+    </div>
+    <br>
+    <br>
+    <div id="resultInterpretationHeap">
+
+    </div>
+</div>
+</body>
+</html>

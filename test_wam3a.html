@@ -1,7 +1,7 @@
 <html lang="">
 <head>
     <title>Web Assembly Wam Tests</title>
-<script src="build/program/util.js"></script>
+<script src="build/program/util.a.js"></script>
 <script>
     let util = require('utilities');
 
@@ -53,9 +53,9 @@
 
             util.registerProgram(util.lookupIndicator("p", 2), create_program_4_4_p_2_a());
 
-            util.runQuery('test', create_query_4_4_a(), obj);
+            let info = util.runQuery(1, create_query_4_4_a(), obj);
 
-            util.display_results('test query4_4a', 16);
+            util.display_results('test query4_4a', 16, info);
         });
     }
 
@@ -103,9 +103,9 @@
             util.initialize_op_codes(obj);
             util.registerProgram(util.lookupIndicator("p", 3), create_program_5_5());
 
-            util.runQuery('test', create_query_5_4(), obj);
+            let info = util.runQuery(1, create_query_5_4(), obj);
 
-            util.display_results('test query5_4', 16);
+            util.display_results('test query5_4', 16, info);
         });
     }
 
@@ -141,9 +141,9 @@
 
             util.registerProgram(util.lookupIndicator("p", 3), create_program_5_7());
 
-            util.runQuery('test', create_query_5_7(), obj);
+            let info = util.runQuery(1, create_query_5_7(), obj);
 
-            util.display_results('test query5_7', 16);
+            util.display_results('test query5_7', 16, info);
         });
     }
 
@@ -159,6 +159,16 @@
 </div>
 <div id="display">
     <div id="testName">
+
+    </div>
+    <br>
+    <br>
+    <div id="stats">
+
+    </div>
+    <br>
+    <br>
+    <div id="result">
 
     </div>
     <br>
