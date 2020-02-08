@@ -1,0 +1,150 @@
+<html lang="">
+<head>
+    <title>Web Assembly Wam Tests</title>
+<script src="build/program/util.c.js"></script>
+<script>
+    let util = require('utilities');
+
+    function create_program_5_10_p_3() {
+        /*
+        p(X, Y, Z) :- q(U, V, W), r(Y, Z, U), s(U, W), t(X, V).
+
+        Var     Last Goal   Offset
+        X       t           Y1
+        Y       r           Y5
+        Z       r           Y6
+        U       s           Y3
+        V       t           Y2
+        W       s           Y4
+        */
+        return [
+            util.opCodes.allocate, // allocate
+            util.opCodes.get_variable, 1, 1, 1, // get_variable Y1, A1
+            util.opCodes.get_variable, 1, 5, 2, // get_variable Y5, A2
+            util.opCodes.get_variable, 1, 6, 3, // get_variable Y6, A3
+
+            util.opCodes.put_variable, 1, 3, 1, // put_variable Y3, A1
+            util.opCodes.put_variable, 1, 2, 2, // put_variable Y2, A2
+            util.opCodes.put_variable, 1, 4, 3, // put_variable Y4, A3
+            util.opCodes.call, util.lookupIndicator("q", 3), 6, // call q/3, 6
+
+            util.opCodes.put_value, 1, 5, 1, // put_value Y5, A1
+            util.opCodes.put_value, 1, 6, 2, // put_value Y6, A2
+            util.opCodes.put_value, 1, 3, 3, // put_value Y3, A3
+            util.opCodes.call, util.lookupIndicator("r", 3), 4, // call r/3, 4
+
+            util.opCodes.put_value, 1, 3, 1, // put_value Y3, A1
+            util.opCodes.put_value, 1, 4, 2, // put_value Y4, A2
+            util.opCodes.call, util.lookupIndicator("s", 2), 2, // call s/2, 2
+
+            util.opCodes.put_value, 1, 1, 1, // put_value Y1, A1
+            util.opCodes.put_value, 1, 2, 2, // put_value Y2, A2
+            util.opCodes.deallocate, // deallocate
+            util.opCodes.execute, util.lookupIndicator("t", 2), // execute t/2
+        ];
+    }
+
+    function create_query_5_10() {
+        // ?- p(X,Y,Z). -> f, d, e
+        return [
+            util.opCodes.put_variable, 0, 3, 1, // put_variable X3,A1
+            util.opCodes.put_variable, 0, 4, 2, // put_variable X4,A2
+            util.opCodes.put_variable, 0, 5, 3, // put_variable X5,A3
+            util.opCodes.call, util.lookupIndicator("p", 3) // call p/3
+        ];
+    }
+
+    function create_program_5_10_q_3 () {
+        // q(a, b, c)
+        return [
+            util.opCodes.get_constant, util.lookup_atom("a"), 1, // get_constant a, A1
+            util.opCodes.get_constant, util.lookup_atom("b"), 2, // get_constant b, A2
+            util.opCodes.get_constant, util.lookup_atom("c"), 3, // get_constant c, A3
+            util.opCodes.proceed // proceed
+        ];
+    }
+
+    function create_program_5_10_r_3 () {
+        // r(d, e, a)
+        return [
+            util.opCodes.get_constant, util.lookup_atom("d"), 1, // get_constant d, A1
+            util.opCodes.get_constant, util.lookup_atom("e"), 2, // get_constant e, A2
+            util.opCodes.get_constant, util.lookup_atom("a"), 2, // get_constant a, A3
+            util.opCodes.proceed // proceed
+        ];
+    }
+
+    function create_program_5_10_s_2 () {
+        // s(a, c)
+        return [
+            util.opCodes.get_constant, util.lookup_atom("a"), 1, // get_constant a, A1
+            util.opCodes.get_constant, util.lookup_atom("c"), 2, // get_constant c, A2
+            util.opCodes.proceed // proceed
+        ];
+    }
+
+    function create_program_5_10_t_2 () {
+        // t(f, b)
+        return [
+            util.opCodes.get_constant, util.lookup_atom("f"), 1, // get_constant f, A1
+            util.opCodes.get_constant, util.lookup_atom("b"), 2, // get_constant b, A2
+            util.opCodes.proceed // proceed
+        ];
+    }
+
+    function test_query_5_10() {
+
+        fetch('build/wam/language3c.wasm').then(response =>
+            response.arrayBuffer()
+        ).then(bytes =>
+            WebAssembly.instantiate(bytes, util.importObject)
+        ).then(obj => {
+            util.initialize_op_codes(obj);
+
+            util.registerProgram(util.lookupIndicator("p", 3), create_program_5_10_p_3());
+            util.registerProgram(util.lookupIndicator("q", 3), create_program_5_10_q_3());
+            util.registerProgram(util.lookupIndicator("r", 3), create_program_5_10_r_3());
+            util.registerProgram(util.lookupIndicator("s", 2), create_program_5_10_s_2());
+            util.registerProgram(util.lookupIndicator("t", 2), create_program_5_10_s_2());
+
+            let info = util.runQuery(1, create_query_5_10(), obj);
+
+            util.display_results('test query5_10', 16, info);
+        });
+    }
+
+</script>
+</head>
+<body>
+<div id="tests">
+    <ul>
+        <li><button onclick="test_query_5_10();">test_query_5_10</button></li>
+    </ul>
+</div>
+<div id="display">
+    <div id="testName">
+
+    </div>
+    <br>
+    <br>
+    <div id="stats">
+
+    </div>
+    <br>
+    <br>
+    <div id="result">
+
+    </div>
+    <br>
+    <br>
+    <div id="resultInterpretationRegisters">
+
+    </div>
+    <br>
+    <br>
+    <div id="resultInterpretationHeap">
+
+    </div>
+</div>
+</body>
+</html>
