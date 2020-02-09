@@ -69,7 +69,7 @@
         return [
             util.opCodes.get_constant, util.lookup_atom("d"), 1, // get_constant d, A1
             util.opCodes.get_constant, util.lookup_atom("e"), 2, // get_constant e, A2
-            util.opCodes.get_constant, util.lookup_atom("a"), 2, // get_constant a, A3
+            util.opCodes.get_constant, util.lookup_atom("a"), 3, // get_constant a, A3
             util.opCodes.proceed // proceed
         ];
     }
@@ -105,7 +105,7 @@
             util.registerProgram(util.lookupIndicator("q", 3), create_program_5_10_q_3());
             util.registerProgram(util.lookupIndicator("r", 3), create_program_5_10_r_3());
             util.registerProgram(util.lookupIndicator("s", 2), create_program_5_10_s_2());
-            util.registerProgram(util.lookupIndicator("t", 2), create_program_5_10_s_2());
+            util.registerProgram(util.lookupIndicator("t", 2), create_program_5_10_t_2());
 
             let info = util.runQuery(1, create_query_5_10(), obj);
 
