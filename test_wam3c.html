@@ -6,6 +6,10 @@
     let util = require('utilities');
 
     function create_program_5_10_p_3() {
+        if(typeof util.opCodes.put_structure === 'undefined') {
+            alert('opCodes not initialized.');
+        }
+
         /*
         p(X, Y, Z) :- q(U, V, W), r(Y, Z, U), s(U, W), t(X, V).
 
@@ -45,6 +49,10 @@
     }
 
     function create_query_5_10() {
+        if(typeof util.opCodes.put_structure === 'undefined') {
+            alert('opCodes not initialized.');
+        }
+
         // ?- p(X,Y,Z). -> f, d, e
         return [
             util.opCodes.put_variable, 0, 3, 1, // put_variable X3,A1
@@ -55,6 +63,10 @@
     }
 
     function create_program_5_10_q_3 () {
+        if(typeof util.opCodes.put_structure === 'undefined') {
+            alert('opCodes not initialized.');
+        }
+
         // q(a, b, c)
         return [
             util.opCodes.get_constant, util.lookup_atom("a"), 1, // get_constant a, A1
@@ -65,6 +77,10 @@
     }
 
     function create_program_5_10_r_3 () {
+        if(typeof util.opCodes.put_structure === 'undefined') {
+            alert('opCodes not initialized.');
+        }
+
         // r(d, e, a)
         return [
             util.opCodes.get_constant, util.lookup_atom("d"), 1, // get_constant d, A1
@@ -75,6 +91,9 @@
     }
 
     function create_program_5_10_s_2 () {
+        if(typeof util.opCodes.put_structure === 'undefined') {
+            alert('opCodes not initialized.');
+        }
         // s(a, c)
         return [
             util.opCodes.get_constant, util.lookup_atom("a"), 1, // get_constant a, A1
@@ -84,6 +103,9 @@
     }
 
     function create_program_5_10_t_2 () {
+        if(typeof util.opCodes.put_structure === 'undefined') {
+            alert('opCodes not initialized.');
+        }
         // t(f, b)
         return [
             util.opCodes.get_constant, util.lookup_atom("f"), 1, // get_constant f, A1

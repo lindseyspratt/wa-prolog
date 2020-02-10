@@ -40,7 +40,9 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
 (module
     (import "js" "mem" (memory 1))
     (import "js" "table" (table 2 funcref))
+    (import "js" "minRegister" (global $minRegister i32))
     (import "js" "registerSize" (global $registerSize i32))
+    (import "js" "registerStart" (global $registerStart i32))
     (import "js" "minPDL" (global $minPDL i32))
     (import "js" "pdlStart" (global $pdlStart i32))
     (import "js" "pdlSize" (global $pdlSize i32))
@@ -51,9 +53,11 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     (import "js" "minTrail" (global $minTrail i32))
     (import "js" "trailSize" (global $trailSize i32))
     (import "js" "heapStart" (global $heapStart i32))
+    (import "js" "heapSize" (global $heapSize i32))
     (import "js" "minHeap" (global $minHeap i32))
     (import "js" "lookupAtom" (func $lookupAtom (param i32) (param i32) (result i32)))
     (import "js" "getIndicatorArity" (func $getIndicatorArity (param i32) (result i32)))
+    (import "js" "getCodeFromProgram" (func $getCodeFromProgram (param i32) (param i32) (result i32)))
     (import "js" "getCode" (func $getCode (param i32) (result i32)))
     (import "js" "setCode" (func $setCode (param i32)))
     (import "js" "traceInstLog0" (func $traceInstLog0 (param i32)))
@@ -66,6 +70,8 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     (import "js" "traceStore" (func $traceStore (param i32) (param i32)))
     (import "js" "warnMaxStack" (func $warnMaxStack (param i32) (param i32)))
     (import "js" "warnMaxTrail" (func $warnMaxTrail (param i32) (param i32)))
+    (import "js" "warnInvalidMemoryLayout"
+        (func $warnInvalidMemoryLayout (param i32) (param i32) (param i32) (param i32) (param i32) (param i32)))
 
 ;;    (import "js" "consoleLog" (func $consoleLog (param i32)))
 
@@ -73,6 +79,7 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     (global $maxPDL (mut i32) (i32.const 0))
     (global $maxStack (mut i32) (i32.const 0))
     (global $maxTrail (mut i32) (i32.const 0))
+    (global $maxHeap (mut i32) (i32.const 0))
 
     (global $TAG_REF i32 (i32.const 0))
     (global $TAG_STR i32 (i32.const 1))
@@ -217,6 +224,9 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
         (i32.add (local.get $Yreg)
             (i32.add (global.get $EPermVarBase) (global.get $E)))
     )
+    (func $tempRegisterAddress (param $Xreg i32) (result i32)
+        (i32.add (local.get $Xreg) (global.get $minRegister))
+    )
     (func $increment (param $val i32) (result i32)
         i32.const 1
         local.get $val
@@ -266,11 +276,11 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
         (call $storeToHeap (global.get $H) (call $tagReference (global.get $H)))
     )
     (func $loadFromRegister (param $reg i32) (result i32)
-        (call $loadFromAddress (local.get $reg))
+        (call $loadFromAddress (call $tempRegisterAddress (local.get $reg)))
     )
 
     (func $storeToRegister (param $reg i32) (param $val i32)
-        (call $storeToAddress (local.get $reg) (local.get $val))
+        (call $storeToAddress (call $tempRegisterAddress (local.get $reg)) (local.get $val))
     )
 
     (func $storeToHeap (param $addr i32) (param $val i32)
@@ -298,7 +308,7 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
 ;;                    (then (call $traceStoreTrailToReg) )
 ;;               )
 ;;        ) )
-;;        (call $traceStore (local.get $addr) (local.get $val))
+        ;;(call $traceStore (local.get $addr) (local.get $val))
         (i32.store (call $wordToByteOffset (local.get $addr)) (local.get $val))
     )
 
@@ -318,6 +328,10 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
 
     (func $storeHeapTopToRegister (param $reg i32)
         (call $storeToRegister (local.get $reg) (call $loadFromHeap (global.get $H)))
+    )
+
+    (func $storeHeapTopToAddress (param $addr i32)
+        (call $storeToAddress (local.get $addr) (call $loadFromHeap (global.get $H)))
     )
     (func $loadFromHeap (param $addr i32) (result i32)
         (call $loadFromAddress (local.get $addr))
@@ -381,7 +395,7 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     (func $resolveRegisterID (param $variableType i32) (param $reg i32) (result i32)
         (if (result i32)
             (i32.eq (local.get $variableType) (i32.const 0))
-            (then (local.get $reg))
+            (then (call $tempRegisterAddress (local.get $reg)))
             (else (call $stackRegisterAddress (local.get $reg)))
         )
     )
@@ -539,7 +553,9 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     )
 
     (func $backtrack
-        (if (i32.eq (global.get $B) (global.get $maxStack))
+        (if (i32.or
+                (i32.eq (global.get $B) (global.get $maxStack))
+                (i32.lt_s (global.get $B) (global.get $minStack)))
             (then (global.set $P (i32.const -1))) ;; terminate run of WAM
             (else
                 (global.set $P
@@ -633,30 +649,41 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
         )
     )
 
+    (func $callInstructionPermanentVariableCount (result i32)
+        (call $getCodeFromProgram (i32.sub (global.get $CP) (i32.const 1)) (global.get $CPPred))
+    )
+
     (func $nextStackFrameSlot (result i32)
-        (local $permanentVariableCount i32)
         (if (result i32)
-            (i32.gt_u (global.get $E) (global.get $B) )
-            (then
-                (local.set $permanentVariableCount (call $getCode (i32.sub (global.get $CP) (i32.const 1))))
-                (return
-                    (i32.add
-                        (i32.add (i32.const 1) (global.get $EPermVarBase))
-                        (i32.add
-                            (global.get $E)
-                            (local.get $permanentVariableCount)))
-                )
+            (i32.and
+                (i32.eq (global.get $B) (i32.const -1))
+                (i32.eq (global.get $E) (i32.const -1))
             )
+            (then (return (global.get $minStack)))
             (else
-               (return
-                    (i32.add
-                        (global.get $B)
-                        (i32.add
-                            (call $loadFromStack (global.get $B)) ;; choicepoint frame arity  (number of argument registers)
-                            (i32.add (global.get $BkSuffixSize) (i32.const 1)) ;; choicepoint frame number of slots after argument registers, plus 1.
+                (if (result i32)
+                    (i32.gt_s (global.get $E) (global.get $B) )
+                    (then
+                        (return
+                            (i32.add
+                                (i32.add (i32.const 1) (global.get $EPermVarBase))
+                                (i32.add
+                                    (global.get $E)
+                                    (call $callInstructionPermanentVariableCount)))
                         )
                     )
-               )
+                    (else
+                       (return
+                            (i32.add
+                                (global.get $B)
+                                (i32.add
+                                    (call $loadFromStack (global.get $B)) ;; choicepoint frame arity  (number of argument registers)
+                                    (i32.add (global.get $BkSuffixSize) (i32.const 1)) ;; choicepoint frame number of slots after argument registers, plus 1.
+                                )
+                            )
+                       )
+                    )
+                )
             )
         )
     )
@@ -706,18 +733,48 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
         (global.set $S (i32.const 0)) ;; $S is current structure argument address (on heap). Used when $mode = $READ_MODE.
         (global.set $CP (i32.const 0)) ;; $CP is the Continuation Program instruction counter - to continue after returning from a call.
         (global.set $CPPred (i32.const 0)) ;; $CPPred is the predicate code identifier for the continuation code. This identifier is used to set the host 'code' that is referenced be getCode func.
-        (global.set $E (global.get $minStack)) ;; $E is the Environment location in the Stack.
-        (global.set $B (global.get $minStack)) ;; $B is the base of the current choicepoint frame - $B can never validly be $minStack, so when the backtrack func tries to 'go to' $minStack it terminates the WAM.
+        (global.set $E (i32.const -1)) ;; $E is the Environment location in the Stack.
+        (global.set $B (i32.const -1)) ;; $B is the base of the current choicepoint frame - $B can never validly be less than or equal to $minStack, so when the backtrack func tries to 'go to' an address less than or equal to $minStack it terminates the WAM.
         (global.set $HB (i32.const -1))
         (global.set $TR (global.get $minTrail))
         (global.set $num_of_args (i32.const -1))
         (global.set $inferences (i32.const 0))
     )
     (func $initialize_limits
-        (global.set $maxRegister (global.get $registerSize))
+        (global.set $maxRegister (i32.add (global.get $minRegister) (global.get $registerSize)))
         (global.set $maxStack (i32.add (global.get $minStack) (global.get $stackSize)))
         (global.set $maxPDL (i32.add (global.get $minPDL) (global.get $pdlSize)))
         (global.set $maxTrail (i32.add (global.get $minTrail) (global.get $trailSize)))
+        (global.set $maxHeap (i32.add (global.get $minHeap) (global.get $heapSize)))
+        ;; layout should order: Heap < Stack < Registers (PDL and Trail are not constrained)
+        (if (i32.or
+                (i32.or
+                (i32.or
+                (i32.ge_u (global.get $maxHeap) (global.get $minStack))
+                (i32.ge_u (global.get $maxStack) (global.get $minRegister))
+                )
+                (i32.or
+                (i32.ge_u (global.get $minHeap) (global.get $maxHeap))
+                (i32.ge_u (global.get $minStack) (global.get $maxStack))
+                )
+                )
+                (i32.or
+                (i32.or
+                (i32.ge_u (global.get $minRegister) (global.get $maxRegister))
+                (i32.ge_u (global.get $minStack) (global.get $maxStack))
+                )
+                (i32.or
+                (i32.ge_u (global.get $minHeap) (global.get $maxHeap))
+                (i32.ge_u (global.get $minRegister) (global.get $maxRegister))
+                )
+                )
+            )
+            (then (call $warnInvalidMemoryLayout
+                (global.get $minHeap) (global.get $maxHeap)
+                (global.get $minStack) (global.get $maxStack)
+                (global.get $minRegister) (global.get $maxRegister)))
+        )
+
     )
     (func $initialize_environment
         (call $storeToStack (global.get $minStack) (i32.const -1))
@@ -903,16 +960,16 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
   )
 
     (func $traceInst0 (param $inst i32)
-        (call $traceInstLog0 (local.get $inst) )
+        ;;(call $traceInstLog0 (local.get $inst) )
     )
     (func $traceInst1 (param $inst i32)
-        (call $traceInstLog1 (local.get $inst) (call $getCodeArg (i32.const 1)))
+        ;;(call $traceInstLog1 (local.get $inst) (call $getCodeArg (i32.const 1)))
     )
     (func $traceInst2 (param $inst i32)
-        (call $traceInstLog2 (local.get $inst) (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
+        ;;(call $traceInstLog2 (local.get $inst) (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
     )
     (func $traceInst3 (param $inst i32)
-        (call $traceInstLog3 (local.get $inst) (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)) (call $getCodeArg (i32.const 3)))
+        ;;(call $traceInstLog3 (local.get $inst) (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)) (call $getCodeArg (i32.const 3)))
     )
 
     ;; trace: nop
@@ -922,44 +979,44 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
 
     ;; trace: put_structure, A1, A2
     (func $op1 ;; $putStructure
-        (call $traceInst2 (i32.const 1))
+        ;;(call $traceInst2 (i32.const 1))
         (call $putStructure (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
         (call $addToP (i32.const 3))
     )
 
     ;; trace: setVariable, A1
     (func $op2 ;; setVariable
-        (call $traceInst1 (i32.const 2))
+        ;;(call $traceInst1 (i32.const 2))
         (call $setVariable (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op3 ;; putVariable
-        (call $traceInst3 (i32.const 3))
+        ;;(call $traceInst3 (i32.const 3))
         (call $putVariable (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)) (call $getCodeArg (i32.const 3)))
         (call $addToP (i32.const 4))
     )
 
     (func $op4 ;; getVariable X/Ytype, permanent or temporary target register ID, source (argument temporary) register ID
-        (call $traceInst3 (i32.const 4))
+        ;;(call $traceInst3 (i32.const 4))
         (call $getVariable (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)) (call $getCodeArg (i32.const 3)))
         (call $addToP (i32.const 4))
     )
 
     (func $op5 ;; setValue
-        (call $traceInst1 (i32.const 5))
+        ;;(call $traceInst1 (i32.const 5))
         (call $setValue (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op6 ;; putValue
-        (call $traceInst3 (i32.const 6))
+        ;;(call $traceInst3 (i32.const 6))
         (call $putValue (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)) (call $getCodeArg (i32.const 3)))
         (call $addToP (i32.const 4))
     )
 
     (func $op7 ;; getValue
-        (call $traceInst2 (i32.const 7))
+        ;;(call $traceInst2 (i32.const 7))
         (call $getValue (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
         (if (global.get $fail)
             (then (call $backtrack))
@@ -968,7 +1025,7 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     )
 
     (func $op8 ;; getStructure
-        (call $traceInst2 (i32.const 8))
+        ;;(call $traceInst2 (i32.const 8))
         (call $getStructure (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
         (if (global.get $fail)
             (then (call $backtrack))
@@ -977,13 +1034,13 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     )
 
     (func $op9 ;; unifyVariable
-        (call $traceInst1 (i32.const 9))
+        ;;(call $traceInst1 (i32.const 9))
         (call $unifyVariable (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op10 ;; unifyValue
-        (call $traceInst1 (i32.const 10))
+        ;;(call $traceInst1 (i32.const 10))
         (call $unifyValue (call $getCodeArg (i32.const 1)))
         (if (global.get $fail)
             (then (call $backtrack))
@@ -992,55 +1049,55 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     )
 
     (func $op11 ;; call
-        (call $traceInst2 (i32.const 11))
+        ;;(call $traceInst2 (i32.const 11))
         (call $call (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
         ;; call manages $P directly, resetting it to 0 for the new 'code' for the new predicate.
     )
 
     (func $op12 ;; proceed
-        (call $traceInst0 (i32.const 12))
+        ;;(call $traceInst0 (i32.const 12))
         (call $proceed)
         ;; proceed manages $P directly, resetting it to $CP.
     )
 
     (func $op13 ;; allocate
-        (call $traceInst0 (i32.const 13))
+        ;;(call $traceInst0 (i32.const 13))
         (call $allocate)
         (call $addToP (i32.const 1))
     )
 
     (func $op14 ;; deallocate
-        (call $traceInst0 (i32.const 14))
+        ;;(call $traceInst0 (i32.const 14))
         (call $deallocate)
         ;; deallocate manages $P directly, resetting it to STACK[$E + $ECP].
     )
 
     (func $op15 ;; try_me_else
-        (call $traceInst1 (i32.const 15))
+        ;;(call $traceInst1 (i32.const 15))
         (call $try_me_else (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op16 ;; retry_me_else
-        (call $traceInst1 (i32.const 16))
+        ;;(call $traceInst1 (i32.const 16))
         (call $retry_me_else (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op17 ;; trust_me
-        (call $traceInst0 (i32.const 17))
+        ;;(call $traceInst0 (i32.const 17))
         (call $trust_me)
         (call $addToP (i32.const 1))
     )
 
     (func $op18 ;; put_constant
-        (call $traceInst2 (i32.const 18))
+        ;;(call $traceInst2 (i32.const 18))
         (call $put_constant (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
         (call $addToP (i32.const 3))
     )
 
     (func $op19 ;; get_constant
-        (call $traceInst2 (i32.const 19))
+        ;;(call $traceInst2 (i32.const 19))
         (call $get_constant (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
         (if (global.get $fail)
             (then (call $backtrack))
@@ -1049,13 +1106,13 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     )
 
     (func $op20 ;; set_constant
-        (call $traceInst1 (i32.const 20))
+        ;;(call $traceInst1 (i32.const 20))
         (call $set_constant (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op21 ;; unify_constant
-        (call $traceInst1 (i32.const 21))
+        ;;(call $traceInst1 (i32.const 21))
         (call $unify_constant (call $getCodeArg (i32.const 1)))
         (if (global.get $fail)
             (then (call $backtrack))
@@ -1064,13 +1121,13 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     )
 
     (func $op22 ;; put_list
-        (call $traceInst1 (i32.const 22))
+        ;;(call $traceInst1 (i32.const 22))
         (call $put_list (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op23 ;; get_list
-        (call $traceInst1 (i32.const 23))
+        ;;(call $traceInst1 (i32.const 23))
         (call $get_list (call $getCodeArg (i32.const 1)))
         (if (global.get $fail)
             (then (call $backtrack))
@@ -1079,19 +1136,19 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     )
 
     (func $op24 ;; set_void
-        (call $traceInst1 (i32.const 24))
+        ;;(call $traceInst1 (i32.const 24))
         (call $set_void (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op25 ;; unify_void
-        (call $traceInst1 (i32.const 25))
+        ;;(call $traceInst1 (i32.const 25))
         (call $unify_void (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op26 ;; execute
-        (call $traceInst1 (i32.const 25))
+        ;;(call $traceInst1 (i32.const 26))
         (call $execute (call $getCodeArg (i32.const 1)))
         ;; $execute updates $P
     )
@@ -1120,7 +1177,7 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
         (local $targetAddr i32)
         (local.set $targetAddr (call $resolveRegisterID (local.get $variableType) (local.get $regID)) )
         call $storeReferenceAtHeapTop
-        (call $storeHeapTopToRegister (local.get $targetAddr))
+        (call $storeHeapTopToAddress (local.get $targetAddr))
         (call $storeHeapTopToRegister (local.get $Areg))
         (call $addToH (i32.const 1))
     )
@@ -1128,7 +1185,7 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     (func $getVariable (param $variableType i32) (param $regID i32) (param $Areg i32)
         (local $targetAddr i32)
         (local.set $targetAddr (call $resolveRegisterID (local.get $variableType) (local.get $regID)) )
-        (call $storeAddressToAddress (local.get $Areg) (local.get $targetAddr))
+        (call $storeAddressToAddress (call $tempRegisterAddress (local.get $Areg)) (local.get $targetAddr))
     )
 
     (func $setValue (param $reg i32)
@@ -1141,10 +1198,10 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     (func $putValue (param $variableType i32) (param $XYreg i32) (param $Areg i32)
         (local $targetAddr i32)
         (local.set $targetAddr (call $resolveRegisterID (local.get $variableType) (local.get $XYreg)) )
-        (call $storeAddressToAddress (local.get $targetAddr) (local.get $Areg))
+        (call $storeAddressToAddress (local.get $targetAddr) (call $tempRegisterAddress (local.get $Areg)))
     )
     (func $getValue (param $Xreg i32) (param $Areg i32)
-        (call $unify (local.get $Xreg) (local.get $Areg))
+        (call $unify (call $tempRegisterAddress (local.get $Xreg)) (call $tempRegisterAddress (local.get $Areg)))
     )
 
     (;
@@ -1163,7 +1220,7 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
 
     (func $getStructure (param $indicator i32) (param $reg i32)
         (local $addr i32) (local $term i32) (local $tag i32)
-        (local.set $addr (call $deref (local.get $reg)))
+        (local.set $addr (call $deref (call $tempRegisterAddress (local.get $reg))))
         (local.set $term (call $loadFromStore (local.get $addr)))
         (local.set $tag (call $termTag (local.get $term)))
 
@@ -1205,7 +1262,7 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
 
     (func $unifyVariable (param $reg i32)
         (if (i32.eq (global.get $mode) (global.get $READ_MODE))
-            (then (call $storeAddressToAddress (global.get $S) (local.get $reg)) )
+            (then (call $storeAddressToAddress (global.get $S) (call $tempRegisterAddress (local.get $reg))) )
         (else (if (i32.eq (global.get $mode) (global.get $WRITE_MODE))
             (then (call $setVariable (local.get $reg)) )
             )
@@ -1216,7 +1273,7 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
 
     (func $unifyValue (param $reg i32)
         (if (i32.eq (global.get $mode) (global.get $READ_MODE))
-            (then (call $unify  (local.get $reg) (global.get $S)) )
+            (then (call $unify  (call $tempRegisterAddress (local.get $reg)) (global.get $S)) )
         (else (if (i32.eq (global.get $mode) (global.get $WRITE_MODE))
             (then (call $setValue (local.get $reg)) )
             )
@@ -1333,7 +1390,12 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
         (call $storeToRegister (local.get $reg) (call $tagConstant (local.get $c)))
     )
 
-    (func $get_constant_addr (param $c i32) (param $addr i32)
+    (func $get_constant_address (param $c i32) (param $addr i32)
+        (local $derefedAddr i32)
+        (local.set $derefedAddr (call $deref (local.get $addr)))
+        (call $get_constant_direct (local.get $c) (local.get $derefedAddr))
+    )
+    (func $get_constant_direct (param $c i32) (param $addr i32)
         (local $term i32) (local $tag i32)
         (local.set $term (call $loadFromStore (local.get $addr)))
         (local.set $tag (call $termTag (local.get $term)))
@@ -1357,10 +1419,10 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
             )
         )
     )
-    (func $get_constant (param $c i32) (param $regOrS i32)
+    (func $get_constant (param $c i32) (param $reg i32)
         (local $addr i32)
-        (local.set $addr (call $deref (local.get $regOrS)))
-        (call $get_constant_addr (local.get $c) (local.get $addr))
+        (local.set $addr (call $deref (call $tempRegisterAddress (local.get $reg))))
+        (call $get_constant_direct (local.get $c) (local.get $addr))
     )
 
     (func $set_constant (param $c i32)
@@ -1371,7 +1433,7 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     (func $unify_constant (param $c i32)
         (if (i32.eq (global.get $mode) (global.get $READ_MODE))
             (then
-                (call $get_constant (local.get $c) (global.get $S))
+                (call $get_constant_address (local.get $c) (global.get $S))
             )
             (else ;; WRITE_MODE
                 (call $set_constant (local.get $c))
@@ -1385,7 +1447,7 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
 
     (func $get_list (param $reg i32)
         (local $addr i32) (local $term i32) (local $tag i32)
-        (local.set $addr (call $deref (local.get $reg)))
+        (local.set $addr (call $deref (call $tempRegisterAddress (local.get $reg))))
         (local.set $term (call $loadFromStore (local.get $addr)))
         (local.set $tag (call $termTag (local.get $term)))
 

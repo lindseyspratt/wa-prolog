@@ -5,23 +5,50 @@ let code = [];
 let indicators = [];
 let programs = [];
 
-const REGISTER_SIZE = 256;
-const MIN_PDL = REGISTER_SIZE + 1;
-const PDL_START = MIN_PDL * 4;
+/*
+memory layout: The single memory space is an array of words.
+Before section 5.8.1: The lowest addresses (1 to REGISTER_SIZE) are the Registers.
+The layout in order from lowest addresses to highest was: Registers, PDL, Stack, Trail, Heap.
+
+To make variable binding management the most efficient and still correct, there are WAM binding rules
+from [AK99, p.63]:
+WAM BINDING RULE 1: Always make the variable of higher address reference that of lower address.
+WAM BINDING RULE 2: Heap variables must never be set to a reference into the stack.
+WAM BINDING RULE 3: The stack must be allocated at higher addresses than the heap, in the same global address space.
+WAM BINDING RULE 4: "...we may assume that X registers conveniently reside at the highest end of the global store." [AK99, p.66, footnote 5].
+
+Since the WAM registers in this implementation are actually in the memory array,
+they should be located at the highest end as specified in rule 4.
+
+After sections 5.8.1 and 5.8.2: PDL, Trail, Heap, Stack, Registers
+ */
 const PDL_SIZE = 256;
-const MIN_STACK = REGISTER_SIZE + PDL_SIZE + 1;
-const STACK_START = (MIN_STACK*4);
-const STACK_SIZE = 4096;
-const MIN_TRAIL = REGISTER_SIZE + PDL_SIZE + STACK_SIZE + 1;
-const TRAIL_START = (MIN_TRAIL*4);
 const TRAIL_SIZE = 1024;
-const MIN_HEAP = REGISTER_SIZE + PDL_SIZE + STACK_SIZE + TRAIL_SIZE + 1;
+const STACK_SIZE = 4096;
+const REGISTER_SIZE = 256;
+const HEAP_SIZE = Math.trunc(memory.buffer.byteLength/4) - (PDL_SIZE + TRAIL_SIZE + STACK_SIZE + REGISTER_SIZE);
+
+const MIN_PDL = 0;
+const PDL_START = MIN_PDL * 4;
+
+const MIN_TRAIL = MIN_PDL + PDL_SIZE + 1;
+const TRAIL_START = (MIN_TRAIL*4);
+
+const MIN_HEAP = MIN_TRAIL + TRAIL_SIZE + 1;
 const HEAP_START = (MIN_HEAP*4);
+
+const MIN_STACK = MIN_HEAP + HEAP_SIZE + 1;
+const STACK_START = (MIN_STACK*4);
+
+const MIN_REGISTER = MIN_STACK + STACK_SIZE + 1;
+const REGISTER_START = (MIN_REGISTER*4);
 
 let importObject = {js:
         {mem: memory,
             table: table,
+            minRegister: MIN_REGISTER,
             registerSize: REGISTER_SIZE,
+            registerStart: REGISTER_START,
             minPDL: MIN_PDL,
             pdlStart: PDL_START,
             pdlSize: PDL_SIZE,
@@ -33,7 +60,9 @@ let importObject = {js:
             trailSize: TRAIL_SIZE,
             minHeap: MIN_HEAP,
             heapStart: HEAP_START,
+            heapSize: HEAP_SIZE,
             lookupAtom: lookupAtomWA,
+            getCodeFromProgram: getCodeFromProgramWA,
             getCode: getCodeWA,
             setCode: setCodeWA,
             getIndicatorArity: getIndicatorArityWA,
@@ -47,6 +76,7 @@ let importObject = {js:
             traceStore: traceStore,
             warnMaxStack: warnMaxStack,
             warnMaxTrail: warnMaxTrail,
+            warnInvalidMemoryLayout: warnInvalidMemoryLayout,
         }};
 
 function lookupAtomWA(start, length){
@@ -54,6 +84,12 @@ function lookupAtomWA(start, length){
     var string = new TextDecoder('utf8').decode(bytes);
     return lookup_atom(string);
 }
+
+function getCodeFromProgramWA(codeOfst, indicator) {
+    let codes = programs[indicator];
+    return codes[codeOfst];
+}
+
 let currentWord;
 function getCodeWA(codeOfst) {
     currentWord = codeOfst;
@@ -164,9 +200,6 @@ function runQuery(limit, queryCode, obj) {
 let opCodes = {};
 
 function initialize_op_codes(obj) {
-    if(typeof opCodes.put_structure === 'undefined') {
-        alert('opCodes not initialized.');
-    }
     opCodes.nop = obj.instance.exports.nop_opcode();
     opCodes.put_structure = obj.instance.exports.put_structure_opcode();
     opCodes.get_structure = obj.instance.exports.get_structure_opcode();
@@ -210,17 +243,16 @@ function getOpCodeName(opCode) {
 
 function display_results(test, length, stats) {
     let results = new Uint32Array(memory.buffer);
-    let startingWord = MIN_HEAP;
     let element1 = document.getElementById('testName');
     element1.innerText = 'Test: ' + test;
     let elementStats = document.getElementById('stats');
     elementStats.innerText = JSON.stringify(stats);
     let element2 = document.getElementById('result');
-    element2.innerText = 'startingWord=' + startingWord + ': ' + JSON.stringify(results.slice(startingWord, startingWord+length));
+    element2.innerText = 'startingWord=' + MIN_HEAP + ': ' + JSON.stringify(results.slice(MIN_HEAP, MIN_HEAP+length));
     let element3 = document.getElementById('resultInterpretationRegisters');
-    element3.innerText = 'registers: ' + interpret_memory(results, 1, length);
+    element3.innerText = 'registers: ' + interpret_memory(results, MIN_REGISTER, MIN_REGISTER+length);
     let element4 = document.getElementById('resultInterpretationHeap');
-    element4.innerText = 'heap: ' + interpret_memory(results, startingWord, startingWord+length);
+    element4.innerText = 'heap: ' + interpret_memory(results, MIN_HEAP, MIN_HEAP+length);
 }
 
 // function console_results(test, results, startingWord, length) {
@@ -419,8 +451,18 @@ function warnMaxStack(addr, max) {
     alert('warning: address ' + addr + ' exceeds max stack ' + max + '.');
 }
 function warnMaxTrail(addr, max) {
-    console.log('warning: address ' + addr + ' exceeds max trail ' + max + '.');
-    alert('warning: address ' + addr + ' exceeds max trail ' + max + '.');
+    let msg = 'warning: address ' + addr + ' exceeds max trail ' + max + '.';
+    console.log(msg);
+    alert(msg);
+}
+function warnInvalidMemoryLayout(heapMin, heapMax, stackMin, stackMax, registerMin, registerMax) {
+    let msg = 'warning: invalid memory layout.\n' +
+        'It should be heap min/max < stack min/max < register min/maxaddress.\n' +
+        'heap = ' + heapMin + '/' + heapMax + ', stack = ' + stackMin + '/' + stackMax + ', register = ' +
+        registerMin + '/' + registerMax + '.';
+
+    console.log(msg);
+    alert(msg);
 }
 const TAG_REF = 0; // 0x00000000
 const TAG_STR = 1; // 0x08000000
@@ -468,3 +510,5 @@ module.exports.process_labels = process_labels;
 module.exports.getOpCodeName = getOpCodeName;
 module.exports.display_results = display_results;
 module.exports.interpret_memory = interpret_memory;
+module.exports.get_tag = get_tag;
+module.exports.get_val = get_val;
