@@ -1,4 +1,4 @@
-const util = require('./utilities.b.wam.js');
+const util = require('./utilities.c.wam.js');
 /*
 nrev([],[]).
 
@@ -6,12 +6,20 @@ nrev([X|Rest],Ans):-
 	nrev(Rest,L),
 	append(L,[X],Ans).
 
+
+	Var     Last Goal   Offset
+	X       append      Y1
+	Rest    nrev        X3 -- temporary var, only present in head and first goal.
+	L       append      Y2
+	Ans     append      Y3
+
+
 	try_me_else L
 	get_constant []
 	get_constant []
 	proceed
-L:	trust_me ;; A1 -> [X4|X3], A2 -> Y2. X4 -> Y1, X3 -> A1, Y3 -> A2. Y1 -> X4, Y3 -> A1, [X4] -> A2, Y2 -> A3.
-	allocate 3			// nrev
+L:	trust_me ;; X4 -> Y1, A1 -> [X4|X3], A2 -> Y2. head. X3 -> A1, Y3 -> A2. call nrev/2. Y1 -> X4, Y3 -> A1, [X4] -> A2, Y2 -> A3. exec append/3.
+	allocate			// nrev
 	put_variable 1, 1, 4,//   Y1 <==> X4
 	get_list 1			//     ([
 	unify_value 4		//		 X
@@ -19,7 +27,7 @@ L:	trust_me ;; A1 -> [X4|X3], A2 -> Y2. X4 -> Y1, X3 -> A1, Y3 -> A2. Y1 -> X4, 
 	get_variable 1, 2, 2//               Ans) :-
 	put_value 0, 3, 1,  //    nrev(Rest,
 	put_variable 1, 3, 2,//             L
-	call nrev/2,		 //	             ),
+	call nrev/2, 3,		 //	             ),
 	put_value 1, 1, 4    //   append(...X4  <= Y1
 	put_value 1, 3, 1,   //          L,
 	put_list 2,  		//	           [
@@ -38,7 +46,7 @@ function nrevProgram () {
 		util.opCodes.proceed,
 		{label: 'L'},
 		util.opCodes.trust_me,
-		util.opCodes.allocate, 3,
+		util.opCodes.allocate,
 		util.opCodes.put_variable, 1, 1, 4,
 		util.opCodes.get_list, 1,
 		util.opCodes.unify_value, 4,
@@ -46,7 +54,7 @@ function nrevProgram () {
 		util.opCodes.get_variable, 1, 2, 2,
 		util.opCodes.put_value, 0, 3, 1,
 		util.opCodes.put_variable, 1, 3, 2,
-		util.opCodes.call, util.lookupIndicator("nrev",2),
+		util.opCodes.call, util.lookupIndicator("nrev",2), 3,
 		util.opCodes.put_value, 1, 1, 4,
 		util.opCodes.put_value, 1, 3, 1,
 		util.opCodes.put_list, 2,
@@ -63,6 +71,7 @@ function nrevProgram () {
 append([], L, L).
 append([H|T], R, [H|L]) :-
 	append(T, R, L).
+
 
 append(A1, A2, A3) :-
 	A1 = [],
@@ -82,7 +91,7 @@ append(A1, A2, A3) :-
 	get_value 4, 3
 	proceed
 L:	trust_me ;; A1 -> [X4|X5], (A2->A2), A3->[X4|X6]
-    allocate 0
+    allocate
 	get_list 1
 	unify_variable 4
 	unify_variable 5
@@ -105,7 +114,7 @@ function appendProgram () {
 
 			{label: 'L'},
 			util.opCodes.trust_me,
-			util.opCodes.allocate, 0,
+			util.opCodes.allocate,
 			util.opCodes.get_list, 1,
 			util.opCodes.unify_variable, 4,
 			util.opCodes.unify_variable, 5,
@@ -148,7 +157,7 @@ function query3() {
 		util.opCodes.set_constant, util.lookup_atom('1'),
 		util.opCodes.set_value, 3,
 		util.opCodes.set_variable, 2,
-		util.opCodes.call, util.lookupIndicator('nrev', 2),
+		util.opCodes.call, util.lookupIndicator('nrev', 2), 0,
 		util.opCodes.proceed
 	]
 }
@@ -157,7 +166,7 @@ function queryNull() {
 	return [
 		util.opCodes.put_constant, util.lookup_atom('[]'), 1,
 		util.opCodes.set_variable, 2,
-		util.opCodes.call, util.lookupIndicator('nrev', 2),
+		util.opCodes.call, util.lookupIndicator('nrev', 2), 0,
 		util.opCodes.proceed
 	]
 }
@@ -168,7 +177,7 @@ function query1() {
 		util.opCodes.set_constant, util.lookup_atom('1'),
 		util.opCodes.set_constant, util.lookup_atom('[]'),
 		util.opCodes.set_variable, 2,
-		util.opCodes.call, util.lookupIndicator('nrev', 2),
+		util.opCodes.call, util.lookupIndicator('nrev', 2), 0,
 		util.opCodes.proceed
 	]
 }
@@ -182,7 +191,7 @@ function query2() {
 		util.opCodes.set_constant, util.lookup_atom('1'),
 		util.opCodes.set_value, 3,
 		util.opCodes.set_variable, 2,
-		util.opCodes.call, util.lookupIndicator('nrev', 2),
+		util.opCodes.call, util.lookupIndicator('nrev', 2), 0,
 		util.opCodes.proceed
 	]
 }
@@ -232,7 +241,7 @@ function genBody(head, tail, n) {
 function query4() {
 	return gen(1, 3, 4, 4)
 		.concat([util.opCodes.set_variable, 2,
-			util.opCodes.call, util.lookupIndicator("nrev", 2),
+			util.opCodes.call, util.lookupIndicator("nrev", 2), 0,
 			util.opCodes.proceed
 		])
 }
@@ -240,7 +249,7 @@ function query4() {
 function query15() {
 	return gen(1, 3, 4, 15)
 		.concat([util.opCodes.set_variable, 2,
-			util.opCodes.call, util.lookupIndicator("nrev", 2),
+			util.opCodes.call, util.lookupIndicator("nrev", 2), 0,
 			util.opCodes.proceed
 		])
 }
@@ -248,7 +257,7 @@ function query15() {
 function query30() {
 	return gen(1, 3, 4, 30)
 		.concat([util.opCodes.set_variable, 2,
-			util.opCodes.call, util.lookupIndicator("nrev", 2),
+			util.opCodes.call, util.lookupIndicator("nrev", 2), 0,
 			util.opCodes.proceed
 		])
 }

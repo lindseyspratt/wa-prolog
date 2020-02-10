@@ -164,6 +164,9 @@ function runQuery(limit, queryCode, obj) {
 let opCodes = {};
 
 function initialize_op_codes(obj) {
+    if(typeof opCodes.put_structure === 'undefined') {
+        alert('opCodes not initialized.');
+    }
     opCodes.nop = obj.instance.exports.nop_opcode();
     opCodes.put_structure = obj.instance.exports.put_structure_opcode();
     opCodes.get_structure = obj.instance.exports.get_structure_opcode();
