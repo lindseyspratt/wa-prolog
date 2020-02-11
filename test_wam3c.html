@@ -215,6 +215,85 @@
         });
     }
 
+    function create_program_5_local_a_1() {
+        if(typeof util.opCodes.put_structure === 'undefined') {
+            alert('opCodes not initialized.');
+        }
+
+        /*
+        This predicate tests set_local_value, showing a case where the
+        set_local_value instruction must be the *first* reference to a non-local variable.
+
+        a(􏰉X):- b􏰉(f(􏰉X)).
+        */
+        return [
+            util.opCodes.get_variable, 0, 2, 1,                             // get_variable X2, A1
+            util.opCodes.put_structure, util.lookupIndicator("f", 1), 1,    // put_structure f/1, A1
+            util.opCodes.set_local_value, 0, 2,                             // set_local_value X2
+            util.opCodes.execute, util.lookupIndicator("b", 1)              // execute b/1
+        ];
+    }
+
+    function create_program_5_local_b_1 () {
+        if(typeof util.opCodes.put_structure === 'undefined') {
+            alert('opCodes not initialized.');
+        }
+
+        // b(f(g)).
+        return [
+            util.opCodes.get_structure, util.lookupIndicator("f",1), 1, // get_structure g/1, A1
+            util.opCodes.unify_constant, util.lookup_atom("g"),         // unify_constant g
+            util.opCodes.proceed                                        // proceed
+        ];
+    }
+
+    function create_program_5_local_c_1 () {
+        if(typeof util.opCodes.put_structure === 'undefined') {
+            alert('opCodes not initialized.');
+        }
+
+        // c(g)
+        return [
+            util.opCodes.get_constant, util.lookup_atom("g"), 1,    // get_constant g, A1
+            util.opCodes.proceed                                    // proceed
+        ];
+    }
+
+    function create_query_5_local() {
+        if(typeof util.opCodes.put_structure === 'undefined') {
+            alert('opCodes not initialized.');
+        }
+
+        // ?- a(X),c(X).
+        return [
+            util.opCodes.allocate,                              // allocate,
+            util.opCodes.put_variable, 1, 1, 1,                 // put_variable, Y1,A1
+            util.opCodes.call, util.lookupIndicator("a", 1), 1, // call a/1,1
+            util.opCodes.put_value, 1, 1, 1,                    // put_value, Y1,A1
+            util.opCodes.deallocate,                            // deallocate
+            util.opCodes.execute, util.lookupIndicator("c", 1)  // execute c/1
+        ];
+    }
+
+    function test_query_5_local() {
+
+        fetch('build/wam/language3c.wasm').then(response =>
+            response.arrayBuffer()
+        ).then(bytes =>
+            WebAssembly.instantiate(bytes, util.importObject)
+        ).then(obj => {
+            util.initialize_op_codes(obj);
+
+            util.registerProgram(util.lookupIndicator("a", 1), create_program_5_local_a_1());
+            util.registerProgram(util.lookupIndicator("b", 1), create_program_5_local_b_1());
+            util.registerProgram(util.lookupIndicator("c", 1), create_program_5_local_c_1());
+
+            let info = util.runQuery(1, create_query_5_local(), obj);
+
+            util.display_results('test query5_local', 16, info);
+        });
+    }
+
 </script>
 </head>
 <body>
@@ -222,6 +301,7 @@
     <ul>
         <li><button onclick="test_query_5_10();">test_query_5_10</button></li>
         <li><button onclick="test_query_5_unsafe();">test_query_5_unsafe</button></li>
+        <li><button onclick="test_query_5_local();">test_query_5_local</button></li>
     </ul>
 </div>
 <div id="display">

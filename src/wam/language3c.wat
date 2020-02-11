@@ -1,5 +1,5 @@
 (;
-Language3C is Language3B with the Environment Trimming and Stack Variables as described in Chapter 5 sections 7 and 8.
+Language3C is Language3B with the Environment Trimming and Stack Variables as described in Chapter 5 sections 7, 8, and 9.
 
 Terms: a term cell value is an i32 that is either a tagged value, written <TAG, VALUE>, or an 'indicator'.
 The tagged value has a TAG of either 0 (for a REFerence), 1 (for a STRucture), 2 (for a LISt), or 3 (for a CONstant).
@@ -847,6 +847,8 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     (func $unify_void_opcode (result i32) (i32.const 25))
     (func $execute_opcode (result i32) (i32.const 26))
     (func $put_unsafe_value_opcode (result i32) (i32.const 27))
+    (func $set_local_value_opcode (result i32) (i32.const 28))
+    (func $unify_local_value_opcode (result i32) (i32.const 29))
 
     (func $evalOp (param $op i32)
         (block
@@ -877,7 +879,9 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
         (block
         (block
         (block
-            (br_table 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 (local.get $op))
+        (block
+        (block
+            (br_table 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 (local.get $op))
             ) ;; 0
             (call $op0) ;; nop
             return
@@ -962,7 +966,13 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
         ) ;; 27
             (call $op27) ;; $put_unsafe_value
             return
-  )
+         ) ;; 28
+             (call $op28) ;; $set_local_value
+             return
+         ) ;; 29
+             (call $op29) ;; $unify_local_value
+             return
+ )
 
     (func $traceInst0 (param $inst i32)
         (call $traceInstLog0 (local.get $inst) )
@@ -1162,6 +1172,21 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
         (call $traceInst2 (i32.const 27))
         (call $put_unsafe_value (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
         (call $addToP (i32.const 3))
+    )
+
+    (func $op28 ;; set_local_value
+        (call $traceInst2 (i32.const 28))
+        (call $set_local_value (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
+        (call $addToP (i32.const 3))
+    )
+
+    (func $op29 ;; unify_local_value
+        (call $traceInst2 (i32.const 29))
+        (call $unify_local_value (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
+        (if (global.get $fail)
+            (then (call $backtrack))
+            (else (call $addToP (i32.const 3)))
+        )
     )
 
     (func $putStructure (param $indicator i32) (param $reg i32)
@@ -1557,6 +1582,42 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
         )
     )
 
+    (;
+    "Specifically, set_value Vn (resp., unify_value Vn) is unsafe whenever
+    the variable Vn has not been initialized in this clause with
+    set_variable or unify_variable, nor, if Vn is temporary, with put_variable." [AK99, p.68]
+    AK never explicitly says what is meant be 'local' It appears that a value is
+    local to a clause if it meets the conditions of the quoted statement: a variable is local
+    to a clause if it has been initialized in that clause with set_variable, unify_variable,
+    (for Vn temporary) put_variable.
+    The set_value Vn and unify_value Vn instructions are only safe in a clause if Vn is local or if
+    set_local_value Vn or unify_local_value Vn has been used previously in that clause (at which point
+    Vn becomes local).
+    ;)
+    (func $set_local_value (param $variableType i32) (param $reg i32)
+        (local $sourceAddr i32)
+        (local.set $sourceAddr (call $deref (call $resolveRegisterID (local.get $variableType) (local.get $reg)) ))
+        (if (i32.lt_u (local.get $sourceAddr) (global.get $H))
+            (then (call $storeHeapToHeap (local.get $sourceAddr) (global.get $H))) ;;HEAP[H] <- HEAP[addr]
+            (else
+                (call $storeReferenceAtHeapTop)
+                (call $bind (local.get $sourceAddr) (global.get $H))
+                (call $addToH (i32.const 1))
+            )
+        )
+    )
+
+    (func $unify_local_value (param $variableType i32) (param $reg i32)
+        (if (i32.eq (global.get $mode) (global.get $READ_MODE))
+            (then (call $unify  (call $resolveRegisterID (local.get $variableType) (local.get $reg)) (global.get $S)) )
+        (else (if (i32.eq (global.get $mode) (global.get $WRITE_MODE))
+            (then (call $set_local_value (local.get $variableType) (local.get $reg)) )
+            )
+        )
+        )
+        (global.set $S (call $increment (global.get $S)))
+    )
+
     (export "setH" (func $setH))
     (export "shiftTag" (func $shiftTag))
     (export "tagStructure" (func $tagStructure))
@@ -1593,6 +1654,8 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     (export "unify_void_opcode" (func $unify_void_opcode))
     (export "execute_opcode" (func $execute_opcode))
     (export "put_unsafe_value_opcode" (func $put_unsafe_value_opcode))
+    (export "set_local_value_opcode" (func $set_local_value_opcode))
+    (export "unify_local_value_opcode" (func $unify_local_value_opcode))
 
     (export "run" (func $run))
 )

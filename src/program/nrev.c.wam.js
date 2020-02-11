@@ -49,7 +49,7 @@ function nrevProgram () {
 		util.opCodes.allocate,
 		util.opCodes.put_variable, 1, 1, 4,
 		util.opCodes.get_list, 1,
-		util.opCodes.unify_value, 4,
+		util.opCodes.unify_value, 4, // X4 local due to put_variable 1,1,4.
 		util.opCodes.unify_variable, 3,
 		util.opCodes.get_variable, 1, 2, 2,
 		util.opCodes.put_value, 0, 3, 1,

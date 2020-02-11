@@ -228,6 +228,8 @@ function initialize_op_codes(obj) {
     opCodes.unify_void = obj.instance.exports.unify_void_opcode();
     opCodes.execute = obj.instance.exports.execute_opcode();
     opCodes.put_unsafe_value = obj.instance.exports.put_unsafe_value_opcode();
+    opCodes.set_local_value = obj.instance.exports.set_local_value_opcode();
+    opCodes.unify_local_value = obj.instance.exports.unify_local_value_opcode();
 }
 
 function getOpCodeName(opCode) {
