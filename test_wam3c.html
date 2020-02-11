@@ -135,12 +135,93 @@
         });
     }
 
+    function create_program_5_unsafe_p_0() {
+        if(typeof util.opCodes.put_structure === 'undefined') {
+            alert('opCodes not initialized.');
+        }
+
+        /*
+        This predicate tests put_unsafe_value, showing a case where the
+        put_unsafe_value instruction must be the *first* reference to a permanent variable
+        in the last goal mentioning that variable (i.e. the first reference to X in r(X,X)).
+
+        p :- q(X), r(X,X).
+        */
+        return [
+            util.opCodes.allocate,                                  // allocate
+
+            util.opCodes.put_variable, 1, 1, 1,                     // put_variable Y1, A1
+            util.opCodes.call, util.lookupIndicator("q", 1), 1,     // call q/1, 1
+
+            util.opCodes.put_unsafe_value, 1, 1,                    // put_unsafe_value Y1, A1
+            util.opCodes.put_value, 1, 1, 2,                        // put_value Y1, A2
+            util.opCodes.deallocate,                                // deallocate
+            util.opCodes.execute, util.lookupIndicator("r", 2)      // execute r/2
+        ];
+    }
+
+    function create_program_5_unsafe_q_1 () {
+        if(typeof util.opCodes.put_structure === 'undefined') {
+            alert('opCodes not initialized.');
+        }
+
+        // q(a)
+        return [
+            util.opCodes.get_constant, util.lookup_atom("a"), 1,    // get_constant a, A3
+            util.opCodes.proceed                                    // proceed
+        ];
+    }
+
+    function create_program_5_unsafe_r_2 () {
+        if(typeof util.opCodes.put_structure === 'undefined') {
+            alert('opCodes not initialized.');
+        }
+
+        // r(X, Y)
+        return [
+            util.opCodes.get_variable, 0, 3, 1, // get_variable X3, A1
+            util.opCodes.get_value, 3, 2,       // get_value X3, A2
+            util.opCodes.proceed                // proceed
+        ];
+    }
+
+    function create_query_5_unsafe() {
+        if(typeof util.opCodes.put_structure === 'undefined') {
+            alert('opCodes not initialized.');
+        }
+
+        // ?- p.
+        return [
+             util.opCodes.call, util.lookupIndicator("p", 0), 0 // call p/0,0
+        ];
+    }
+
+    function test_query_5_unsafe() {
+
+        fetch('build/wam/language3c.wasm').then(response =>
+            response.arrayBuffer()
+        ).then(bytes =>
+            WebAssembly.instantiate(bytes, util.importObject)
+        ).then(obj => {
+            util.initialize_op_codes(obj);
+
+            util.registerProgram(util.lookupIndicator("p", 0), create_program_5_unsafe_p_0());
+            util.registerProgram(util.lookupIndicator("q", 1), create_program_5_unsafe_q_1());
+            util.registerProgram(util.lookupIndicator("r", 2), create_program_5_unsafe_r_2());
+
+            let info = util.runQuery(1, create_query_5_unsafe(), obj);
+
+            util.display_results('test query5_unsafe', 16, info);
+        });
+    }
+
 </script>
 </head>
 <body>
 <div id="tests">
     <ul>
         <li><button onclick="test_query_5_10();">test_query_5_10</button></li>
+        <li><button onclick="test_query_5_unsafe();">test_query_5_unsafe</button></li>
     </ul>
 </div>
 <div id="display">

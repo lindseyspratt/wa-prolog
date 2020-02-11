@@ -308,7 +308,7 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
 ;;                    (then (call $traceStoreTrailToReg) )
 ;;               )
 ;;        ) )
-        ;;(call $traceStore (local.get $addr) (local.get $val))
+        (call $traceStore (local.get $addr) (local.get $val))
         (i32.store (call $wordToByteOffset (local.get $addr)) (local.get $val))
     )
 
@@ -846,6 +846,7 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     (func $set_void_opcode (result i32) (i32.const 24))
     (func $unify_void_opcode (result i32) (i32.const 25))
     (func $execute_opcode (result i32) (i32.const 26))
+    (func $put_unsafe_value_opcode (result i32) (i32.const 27))
 
     (func $evalOp (param $op i32)
         (block
@@ -875,7 +876,8 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
         (block
         (block
         (block
-            (br_table 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 (local.get $op))
+        (block
+            (br_table 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 (local.get $op))
             ) ;; 0
             (call $op0) ;; nop
             return
@@ -957,19 +959,22 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
         ) ;; 26
             (call $op26) ;; $execute
             return
+        ) ;; 27
+            (call $op27) ;; $put_unsafe_value
+            return
   )
 
     (func $traceInst0 (param $inst i32)
-        ;;(call $traceInstLog0 (local.get $inst) )
+        (call $traceInstLog0 (local.get $inst) )
     )
     (func $traceInst1 (param $inst i32)
-        ;;(call $traceInstLog1 (local.get $inst) (call $getCodeArg (i32.const 1)))
+        (call $traceInstLog1 (local.get $inst) (call $getCodeArg (i32.const 1)))
     )
     (func $traceInst2 (param $inst i32)
-        ;;(call $traceInstLog2 (local.get $inst) (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
+        (call $traceInstLog2 (local.get $inst) (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
     )
     (func $traceInst3 (param $inst i32)
-        ;;(call $traceInstLog3 (local.get $inst) (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)) (call $getCodeArg (i32.const 3)))
+        (call $traceInstLog3 (local.get $inst) (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)) (call $getCodeArg (i32.const 3)))
     )
 
     ;; trace: nop
@@ -979,44 +984,44 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
 
     ;; trace: put_structure, A1, A2
     (func $op1 ;; $putStructure
-        ;;(call $traceInst2 (i32.const 1))
+        (call $traceInst2 (i32.const 1))
         (call $putStructure (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
         (call $addToP (i32.const 3))
     )
 
     ;; trace: setVariable, A1
     (func $op2 ;; setVariable
-        ;;(call $traceInst1 (i32.const 2))
+        (call $traceInst1 (i32.const 2))
         (call $setVariable (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op3 ;; putVariable
-        ;;(call $traceInst3 (i32.const 3))
+        (call $traceInst3 (i32.const 3))
         (call $putVariable (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)) (call $getCodeArg (i32.const 3)))
         (call $addToP (i32.const 4))
     )
 
     (func $op4 ;; getVariable X/Ytype, permanent or temporary target register ID, source (argument temporary) register ID
-        ;;(call $traceInst3 (i32.const 4))
+        (call $traceInst3 (i32.const 4))
         (call $getVariable (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)) (call $getCodeArg (i32.const 3)))
         (call $addToP (i32.const 4))
     )
 
     (func $op5 ;; setValue
-        ;;(call $traceInst1 (i32.const 5))
+        (call $traceInst1 (i32.const 5))
         (call $setValue (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op6 ;; putValue
-        ;;(call $traceInst3 (i32.const 6))
+        (call $traceInst3 (i32.const 6))
         (call $putValue (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)) (call $getCodeArg (i32.const 3)))
         (call $addToP (i32.const 4))
     )
 
     (func $op7 ;; getValue
-        ;;(call $traceInst2 (i32.const 7))
+        (call $traceInst2 (i32.const 7))
         (call $getValue (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
         (if (global.get $fail)
             (then (call $backtrack))
@@ -1025,7 +1030,7 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     )
 
     (func $op8 ;; getStructure
-        ;;(call $traceInst2 (i32.const 8))
+        (call $traceInst2 (i32.const 8))
         (call $getStructure (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
         (if (global.get $fail)
             (then (call $backtrack))
@@ -1034,13 +1039,13 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     )
 
     (func $op9 ;; unifyVariable
-        ;;(call $traceInst1 (i32.const 9))
+        (call $traceInst1 (i32.const 9))
         (call $unifyVariable (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op10 ;; unifyValue
-        ;;(call $traceInst1 (i32.const 10))
+        (call $traceInst1 (i32.const 10))
         (call $unifyValue (call $getCodeArg (i32.const 1)))
         (if (global.get $fail)
             (then (call $backtrack))
@@ -1049,55 +1054,55 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     )
 
     (func $op11 ;; call
-        ;;(call $traceInst2 (i32.const 11))
+        (call $traceInst2 (i32.const 11))
         (call $call (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
         ;; call manages $P directly, resetting it to 0 for the new 'code' for the new predicate.
     )
 
     (func $op12 ;; proceed
-        ;;(call $traceInst0 (i32.const 12))
+        (call $traceInst0 (i32.const 12))
         (call $proceed)
         ;; proceed manages $P directly, resetting it to $CP.
     )
 
     (func $op13 ;; allocate
-        ;;(call $traceInst0 (i32.const 13))
+        (call $traceInst0 (i32.const 13))
         (call $allocate)
         (call $addToP (i32.const 1))
     )
 
     (func $op14 ;; deallocate
-        ;;(call $traceInst0 (i32.const 14))
+        (call $traceInst0 (i32.const 14))
         (call $deallocate)
         ;; deallocate manages $P directly, resetting it to STACK[$E + $ECP].
     )
 
     (func $op15 ;; try_me_else
-        ;;(call $traceInst1 (i32.const 15))
+        (call $traceInst1 (i32.const 15))
         (call $try_me_else (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op16 ;; retry_me_else
-        ;;(call $traceInst1 (i32.const 16))
+        (call $traceInst1 (i32.const 16))
         (call $retry_me_else (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op17 ;; trust_me
-        ;;(call $traceInst0 (i32.const 17))
+        (call $traceInst0 (i32.const 17))
         (call $trust_me)
         (call $addToP (i32.const 1))
     )
 
     (func $op18 ;; put_constant
-        ;;(call $traceInst2 (i32.const 18))
+        (call $traceInst2 (i32.const 18))
         (call $put_constant (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
         (call $addToP (i32.const 3))
     )
 
     (func $op19 ;; get_constant
-        ;;(call $traceInst2 (i32.const 19))
+        (call $traceInst2 (i32.const 19))
         (call $get_constant (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
         (if (global.get $fail)
             (then (call $backtrack))
@@ -1106,13 +1111,13 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     )
 
     (func $op20 ;; set_constant
-        ;;(call $traceInst1 (i32.const 20))
+        (call $traceInst1 (i32.const 20))
         (call $set_constant (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op21 ;; unify_constant
-        ;;(call $traceInst1 (i32.const 21))
+        (call $traceInst1 (i32.const 21))
         (call $unify_constant (call $getCodeArg (i32.const 1)))
         (if (global.get $fail)
             (then (call $backtrack))
@@ -1121,13 +1126,13 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     )
 
     (func $op22 ;; put_list
-        ;;(call $traceInst1 (i32.const 22))
+        (call $traceInst1 (i32.const 22))
         (call $put_list (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op23 ;; get_list
-        ;;(call $traceInst1 (i32.const 23))
+        (call $traceInst1 (i32.const 23))
         (call $get_list (call $getCodeArg (i32.const 1)))
         (if (global.get $fail)
             (then (call $backtrack))
@@ -1136,21 +1141,27 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     )
 
     (func $op24 ;; set_void
-        ;;(call $traceInst1 (i32.const 24))
+        (call $traceInst1 (i32.const 24))
         (call $set_void (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op25 ;; unify_void
-        ;;(call $traceInst1 (i32.const 25))
+        (call $traceInst1 (i32.const 25))
         (call $unify_void (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op26 ;; execute
-        ;;(call $traceInst1 (i32.const 26))
+        (call $traceInst1 (i32.const 26))
         (call $execute (call $getCodeArg (i32.const 1)))
         ;; $execute updates $P
+    )
+
+    (func $op27 ;; put_unsafe_value
+        (call $traceInst2 (i32.const 27))
+        (call $put_unsafe_value (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
+        (call $addToP (i32.const 3))
     )
 
     (func $putStructure (param $indicator i32) (param $reg i32)
@@ -1525,6 +1536,27 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
         (global.set $num_of_args (local.get $arity))
     )
 
+    (;
+    "...a permanent variable which is initialized by a put_variable (i.e., which first
+    occurs as the argument of a body goal) is called an unsafe variable." [AK99, p.64]
+
+    put_unsafe_value is used for Yk (instead of put_value) on the first reference to Yk
+    in preparing for the call/execute of the last goal that references Yk.
+    ;)
+    (func $put_unsafe_value (param $permanentReg i32) (param $Areg i32)
+        (local $sourceAddr i32)
+        (local.set $sourceAddr (call $deref (call $resolveRegisterID (i32.const 1) (local.get $permanentReg)) ))
+        (if (i32.lt_u (local.get $sourceAddr) (global.get $E))
+            (then (call $storeToRegister (local.get $Areg) (call $loadFromAddress (local.get $sourceAddr))))
+            (else
+                (call $storeReferenceAtHeapTop)
+                (call $bind (local.get $sourceAddr) (global.get $H))
+                (call $storeHeapTopToRegister (local.get $Areg))
+                (call $addToH (i32.const 1))
+            )
+        )
+    )
+
     (export "setH" (func $setH))
     (export "shiftTag" (func $shiftTag))
     (export "tagStructure" (func $tagStructure))
@@ -1560,6 +1592,7 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     (export "set_void_opcode" (func $set_void_opcode))
     (export "unify_void_opcode" (func $unify_void_opcode))
     (export "execute_opcode" (func $execute_opcode))
+    (export "put_unsafe_value_opcode" (func $put_unsafe_value_opcode))
 
     (export "run" (func $run))
 )

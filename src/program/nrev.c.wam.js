@@ -28,8 +28,8 @@ L:	trust_me ;; X4 -> Y1, A1 -> [X4|X3], A2 -> Y2. head. X3 -> A1, Y3 -> A2. call
 	put_value 0, 3, 1,  //    nrev(Rest,
 	put_variable 1, 3, 2,//             L
 	call nrev/2, 3,		 //	             ),
-	put_value 1, 1, 4    //   append(...X4  <= Y1
-	put_value 1, 3, 1,   //          L,
+	put_unsafe_value 1, 4    //   append(...X4  <= Y1
+	put_unsafe_value 3, 1,   //          L,
 	put_list 2,  		//	           [
 	set_value 4       	//              X...X4
 	set_constant []   	//               ],
@@ -55,8 +55,8 @@ function nrevProgram () {
 		util.opCodes.put_value, 0, 3, 1,
 		util.opCodes.put_variable, 1, 3, 2,
 		util.opCodes.call, util.lookupIndicator("nrev",2), 3,
-		util.opCodes.put_value, 1, 1, 4,
-		util.opCodes.put_value, 1, 3, 1,
+		util.opCodes.put_unsafe_value, 1, 4,
+		util.opCodes.put_unsafe_value, 3, 1,
 		util.opCodes.put_list, 2,
 		util.opCodes.set_value, 4,
 		util.opCodes.set_constant, util.lookup_atom("[]"),
