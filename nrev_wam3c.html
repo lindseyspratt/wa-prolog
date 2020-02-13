@@ -5,7 +5,7 @@
     <meta name="viewport"
           content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>nrev/2 WAM3a</title>
+    <title>nrev/2 WAM3c</title>
 </head>
 <body>
 <div id="tests">
@@ -57,7 +57,7 @@
             util.registerProgram(util.lookupIndicator('nrev', 2), nrev.nrevProgram());
             util.registerProgram(util.lookupIndicator('append', 3), nrev.appendProgram());
 
-            let limit = 1; //2500;
+            let limit = 10000;
             let info = util.runQuery(limit, nrev.query30(), res);
 
             let durationSec = info.duration / 1000;

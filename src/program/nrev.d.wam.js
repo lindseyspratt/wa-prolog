@@ -40,12 +40,20 @@ L:	trust_me ;; X4 -> Y1, A1 -> [X4|X3], A2 -> Y2. head. X3 -> A1, Y3 -> A2. call
 
 function nrevProgram () {
 	return util.process_labels([
-		util.opCodes.try_me_else, {ref: 'L'},                   // try_me_else, L1
+        util.opCodes.switch_on_term, {ref: 'C1a'}, {ref: 'C1'}, {ref: 'C2'}, 0,    // switch_on_term C1,C1a,C2,fail
+
+        {label: 'C1a'},
+        util.opCodes.try_me_else, {ref: 'C2a'},
+
+        {label: 'C1'},
 		util.opCodes.get_constant, util.lookup_atom("[]"), 1,
 		util.opCodes.get_constant, util.lookup_atom("[]"), 2,
 		util.opCodes.proceed,
-		{label: 'L'},
+
+		{label: 'C2a'},
 		util.opCodes.trust_me,
+
+        {label: 'C2'},
 		util.opCodes.allocate,
 		util.opCodes.put_variable, 1, 1, 4,
 		util.opCodes.get_list, 1,
@@ -106,25 +114,27 @@ L:	trust_me ;; A1 -> [X4|X5], (A2->A2), A3->[X4|X6]
 
 function appendProgram () {
 	return util.process_labels([
-			util.opCodes.try_me_else, {ref: 'L'},
-			util.opCodes.get_constant, util.lookup_atom('[]'), 1,
-			util.opCodes.get_variable, 0, 4, 2,
-			util.opCodes.get_value, 4, 3,
-			util.opCodes.proceed,
+        util.opCodes.switch_on_term, {ref: 'C1a'}, {ref: 'C1'}, {ref: 'C2'}, 0,    // switch_on_term C1,C1a,C2,fail
 
-			{label: 'L'},
-			util.opCodes.trust_me,
-			util.opCodes.allocate,
-			util.opCodes.get_list, 1,
-			util.opCodes.unify_variable, 4,
-			util.opCodes.unify_variable, 5,
-			util.opCodes.get_list, 3,
-			util.opCodes.unify_value, 4,
-			util.opCodes.unify_variable, 6,
-			util.opCodes.put_value, 0, 5, 1,
-			util.opCodes.put_value, 0, 6, 3,
-			util.opCodes.deallocate,
-			util.opCodes.execute, util.lookupIndicator("append", 3),
+        {label: 'C1a'},
+        util.opCodes.try_me_else, {ref: 'C2a'},
+
+        {label: 'C1'},
+        util.opCodes.get_constant, util.lookup_atom('[]'), 1,
+        util.opCodes.get_value, 2, 3,
+        util.opCodes.proceed,
+
+        {label: 'C2a'},
+        util.opCodes.trust_me,
+
+        {label: 'C2'},
+        util.opCodes.get_list, 1,
+        util.opCodes.unify_variable, 4,
+        util.opCodes.unify_variable, 1,
+        util.opCodes.get_list, 3,
+        util.opCodes.unify_value, 4,
+        util.opCodes.unify_variable, 3,
+        util.opCodes.execute, util.lookupIndicator('append', 3)
 		]
 	)
 }

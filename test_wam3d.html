@@ -12,7 +12,7 @@
         util.validate_op_codes();
 
         return util.process_labels([
-            util.opCodes.switch_on_term, {ref: 'C1'}, {ref: 'C1a'}, {ref: 'C2'}, 0,    // switch_on_term C1,C1a,C2,fail
+            util.opCodes.switch_on_term, {ref: 'C1a'}, {ref: 'C1'}, {ref: 'C2'}, 0,    // switch_on_term C1a,C1,C2,fail
 
             {label: 'C1a'},
             util.opCodes.try_me_else, {ref: 'C2a'},
