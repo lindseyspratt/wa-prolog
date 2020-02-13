@@ -114,6 +114,7 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     (global $TR (mut i32) (global.get $minTrail))
     (global $num_of_args (mut i32) (i32.const -1))
     (global $inferences (mut i32) (i32.const 0))
+    (global $baseExecutes (mut i32) (i32.const 0)) ;; number of executes invoked with no proceed, prior to top choicepoint frame.
 
     (; "...the continuation slot of the latest environment frame, STACK[E+1], always contains
         the address of the instruction immediately following the appropriate (call P,N)
@@ -137,7 +138,8 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     (global $BkBP i32 (i32.const 4))            ;; Backtrack Pointer (next clause word location in code for current program) = STACK[$B + STACK[$B] + $BkBP]
     (global $BkTR i32 (i32.const 5))            ;; Trail Pointer (address in TRAIL) = STACK[$B + STACK[$B] + $BkTR]
     (global $BkH i32 (i32.const 6))             ;; Heap pointer = STACK[$B + STACK[$B] + $BkH]
-    (global $BkSuffixSize i32 (i32.const 6))    ;; Number of slots in the choicepoint frame  following the argument slots.
+    (global $BkI i32 (i32.const 7))             ;; number of executes invoked with no 'proceed' (indicating incomplete inferences) since this frame was created and prior to subsequent frame.
+    (global $BkSuffixSize i32 (i32.const 7))    ;; Number of slots in the choicepoint frame  following the argument slots.
 
     (global $fail (mut i32) (i32.const 0))
     (global $mode (mut i32) (i32.const 0))
@@ -253,10 +255,6 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
         (if (i32.gt_u (global.get $TR) (global.get $maxTrail))
             (then (call $warnMaxTrail (global.get $TR) (global.get $maxTrail)))
         )
-    )
-
-    (func $incrementInferences
-        (global.set $inferences (i32.add (global.get $inferences) (i32.const 1)))
     )
 
     (func $getInferences (result i32)
@@ -555,6 +553,7 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     )
 
     (func $backtrack
+        (local $old i32)
         (if (i32.or
                 (i32.eq (global.get $B) (global.get $maxStack))
                 (i32.lt_s (global.get $B) (global.get $minStack)))
@@ -572,6 +571,7 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
                 )
             )
         )
+        (local.set $old (call $resetIncompleteInferences)) ;; discard the incomplete inference count for this choicepoint frame or for the 'base'.
     )
 
     (func $create_environment_frame (param $newE i32)
@@ -627,7 +627,60 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
             (i32.add (local.get $lastFrameArg) (global.get $BkH))
             (global.get $H)
         )
+        (call $storeToStack
+            (i32.add (local.get $lastFrameArg) (global.get $BkI))
+            (i32.const 0)
+        )
     )
+
+    (func $incrementInferences
+        (local $incompleteInferences i32)
+        (local.set $incompleteInferences (call $resetIncompleteInferences))
+        (global.set $inferences (i32.add (global.get $inferences) (i32.add (local.get $incompleteInferences (i32.const 1)))))
+    )
+
+    (func $incrementIncompleteInferences
+        (local $arity i32) (local $lastFrameArg i32) (local $counterAddr i32) (local $old i32)
+        (if (i32.ge_s (global.get $B) (global.get $minStack))
+            (then
+                (local.set $arity (call $loadFromStack (global.get $B)))
+                (local.set $lastFrameArg (i32.add (global.get $B) (local.get $arity)))
+                (local.set $counterAddr (i32.add (local.get $lastFrameArg) (global.get $BkI)))
+                (local.set $old (call $loadFromStack (local.get $counterAddr)))
+                (call $storeToStack
+                    (local.get $counterAddr)
+                    (i32.add (local.get $old) (i32.const 1))
+                )
+            )
+            (else
+                (global.set $baseExecutes (i32.add (global.get $baseExecutes) (i32.const 1)))
+            )
+        )
+    )
+
+    (func $resetIncompleteInferences (result i32)
+        (local $arity i32) (local $lastFrameArg i32) (local $counterAddr i32) (local $old i32)
+        (if (result i32)
+            (i32.ge_s (global.get $B) (global.get $minStack))
+            (then
+                (local.set $arity (call $loadFromStack (global.get $B)))
+                (local.set $lastFrameArg (i32.add (global.get $B) (local.get $arity)))
+                (local.set $counterAddr (i32.add (local.get $lastFrameArg) (global.get $BkI)))
+                (local.set $old (call $loadFromStack (local.get $counterAddr)))
+                (call $storeToStack
+                    (local.get $counterAddr)
+                    (i32.const 0)
+                )
+                (return (local.get $old))
+            )
+            (else
+                (local.set $old (global.get $baseExecutes))
+                (global.set $baseExecutes (i32.const 0))
+                (return (local.get $old))
+            )
+        )
+    )
+
 
     (func $storeRegistersFromChoicepoint
         (local $i i32) (local $n i32)
@@ -1526,7 +1579,6 @@ return search_bucket(val, subtableStart, subsize)
 ;;        (global.set $E (call $loadFromStack (global.get $E)))
 ;;    )
     (func $deallocate
-        (call $incrementInferences)
         (global.set $CPPred (call $loadFromStack (i32.add (global.get $E) (global.get $ECPPred)) ))
         (global.set $CP (call $loadFromStack (i32.add (global.get $E) (global.get $ECP)) ))
 
@@ -1700,6 +1752,7 @@ return search_bucket(val, subtableStart, subsize)
 
     (func $execute (param $pred i32)
         (local $arity i32)
+        (call $incrementIncompleteInferences)
         (local.set $arity (call $getIndicatorArity (local.get $pred)))
         (if (i32.eq (local.get $arity) (i32.const -1))
             (then
