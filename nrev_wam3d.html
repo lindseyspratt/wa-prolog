@@ -58,12 +58,12 @@
             util.registerProgram(util.lookupIndicator('append', 3), nrev.appendProgram());
 
             let limit = 1; //2500;
-            let info = util.runQuery(limit, nrev.query30(), res);
+            let info = util.runQuery(limit, nrev.query2(), res);
 
             let durationSec = info.duration / 1000;
             let lips = Math.trunc(info.inferences / durationSec);
 
-            util.display_results('test query 30', 64,
+            util.display_results('test query 2', 64,
                 {lips: lips, repetitions: limit, durationSeconds: durationSec, inferences: info.inferences});
         });
     }

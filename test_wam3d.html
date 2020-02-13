@@ -5,116 +5,57 @@
 <script>
     let util = require('utilities');
 
-    function create_program_5_10_p_3() {
-        if(typeof util.opCodes.put_structure === 'undefined') {
-            alert('opCodes not initialized.');
-        }
+    function create_program_5_18_conc_3() {
+        // conc([], L L).
+        // conc([H|T], L, [H|R]) :- conc(T, L, R).
 
-        /*
-        p(X, Y, Z) :- q(U, V, W), r(Y, Z, U), s(U, W), t(X, V).
+        util.validate_op_codes();
 
-        Var     Last Goal   Offset
-        X       t           Y1
-        Y       r           Y5
-        Z       r           Y6
-        U       s           Y3
-        V       t           Y2
-        W       s           Y4
-        */
+        return util.process_labels([
+            util.opCodes.switch_on_term, {ref: 'C1'}, {ref: 'C1a'}, {ref: 'C2'}, 0,    // switch_on_term C1,C1a,C2,fail
+
+            {label: 'C1a'},
+            util.opCodes.try_me_else, {ref: 'C2a'},
+
+            {label: 'C1'},
+            util.opCodes.get_constant, util.lookup_atom('[]'), 1,
+            util.opCodes.get_value, 2, 3,
+            util.opCodes.proceed,
+
+            {label: 'C2a'},
+            util.opCodes.trust_me,
+
+            {label: 'C2'},
+            util.opCodes.get_list, 1,
+            util.opCodes.unify_variable, 4,
+            util.opCodes.unify_variable, 1,
+            util.opCodes.get_list, 3,
+            util.opCodes.unify_value, 4,
+            util.opCodes.unify_variable, 3,
+            util.opCodes.execute, util.lookupIndicator('conc', 3)
+
+        ]);
+    }
+
+    function create_query_5_18() {
+        util.validate_op_codes();
+
+        // ?- conc([a],[b],X). -> X=[a,b]
         return [
-            util.opCodes.allocate, // allocate
-            util.opCodes.get_variable, 1, 1, 1, // get_variable Y1, A1
-            util.opCodes.get_variable, 1, 5, 2, // get_variable Y5, A2
-            util.opCodes.get_variable, 1, 6, 3, // get_variable Y6, A3
-
-            util.opCodes.put_variable, 1, 3, 1, // put_variable Y3, A1
-            util.opCodes.put_variable, 1, 2, 2, // put_variable Y2, A2
-            util.opCodes.put_variable, 1, 4, 3, // put_variable Y4, A3
-            util.opCodes.call, util.lookupIndicator("q", 3), 6, // call q/3, 6
-
-            util.opCodes.put_value, 1, 5, 1, // put_value Y5, A1
-            util.opCodes.put_value, 1, 6, 2, // put_value Y6, A2
-            util.opCodes.put_value, 1, 3, 3, // put_value Y3, A3
-            util.opCodes.call, util.lookupIndicator("r", 3), 4, // call r/3, 4
-
-            util.opCodes.put_value, 1, 3, 1, // put_value Y3, A1
-            util.opCodes.put_value, 1, 4, 2, // put_value Y4, A2
-            util.opCodes.call, util.lookupIndicator("s", 2), 2, // call s/2, 2
-
-            util.opCodes.put_value, 1, 1, 1, // put_value Y1, A1
-            util.opCodes.put_value, 1, 2, 2, // put_value Y2, A2
-            util.opCodes.deallocate, // deallocate
-            util.opCodes.execute, util.lookupIndicator("t", 2), // execute t/2
+            util.opCodes.allocate,
+            util.opCodes.put_list, 1,                               // put_list A1
+            util.opCodes.set_constant, util.lookup_atom('a'),
+            util.opCodes.set_constant, util.lookup_atom('[]'),
+            util.opCodes.put_list, 2,                               // put_list A2
+            util.opCodes.set_constant, util.lookup_atom('b'),
+            util.opCodes.set_constant, util.lookup_atom('[]'),
+            util.opCodes.put_variable, 0, 4, 3,                     // put_variable Y1,A3
+            util.opCodes.deallocate,
+            util.opCodes.execute, util.lookupIndicator("conc", 3)   // execute conc/3
         ];
     }
 
-    function create_query_5_10() {
-        if(typeof util.opCodes.put_structure === 'undefined') {
-            alert('opCodes not initialized.');
-        }
-
-        // ?- p(X,Y,Z). -> f, d, e
-        return [
-            util.opCodes.put_variable, 0, 3, 1, // put_variable X3,A1
-            util.opCodes.put_variable, 0, 4, 2, // put_variable X4,A2
-            util.opCodes.put_variable, 0, 5, 3, // put_variable X5,A3
-            util.opCodes.call, util.lookupIndicator("p", 3), 0 // call p/3,0
-        ];
-    }
-
-    function create_program_5_10_q_3 () {
-        if(typeof util.opCodes.put_structure === 'undefined') {
-            alert('opCodes not initialized.');
-        }
-
-        // q(a, b, c)
-        return [
-            util.opCodes.get_constant, util.lookup_atom("a"), 1, // get_constant a, A1
-            util.opCodes.get_constant, util.lookup_atom("b"), 2, // get_constant b, A2
-            util.opCodes.get_constant, util.lookup_atom("c"), 3, // get_constant c, A3
-            util.opCodes.proceed // proceed
-        ];
-    }
-
-    function create_program_5_10_r_3 () {
-        if(typeof util.opCodes.put_structure === 'undefined') {
-            alert('opCodes not initialized.');
-        }
-
-        // r(d, e, a)
-        return [
-            util.opCodes.get_constant, util.lookup_atom("d"), 1, // get_constant d, A1
-            util.opCodes.get_constant, util.lookup_atom("e"), 2, // get_constant e, A2
-            util.opCodes.get_constant, util.lookup_atom("a"), 3, // get_constant a, A3
-            util.opCodes.proceed // proceed
-        ];
-    }
-
-    function create_program_5_10_s_2 () {
-        if(typeof util.opCodes.put_structure === 'undefined') {
-            alert('opCodes not initialized.');
-        }
-        // s(a, c)
-        return [
-            util.opCodes.get_constant, util.lookup_atom("a"), 1, // get_constant a, A1
-            util.opCodes.get_constant, util.lookup_atom("c"), 2, // get_constant c, A2
-            util.opCodes.proceed // proceed
-        ];
-    }
-
-    function create_program_5_10_t_2 () {
-        if(typeof util.opCodes.put_structure === 'undefined') {
-            alert('opCodes not initialized.');
-        }
-        // t(f, b)
-        return [
-            util.opCodes.get_constant, util.lookup_atom("f"), 1, // get_constant f, A1
-            util.opCodes.get_constant, util.lookup_atom("b"), 2, // get_constant b, A2
-            util.opCodes.proceed // proceed
-        ];
-    }
-
-    function test_query_5_10() {
+    function test_query_5_18() {
 
         fetch('build/wam/language3d.wasm').then(response =>
             response.arrayBuffer()
@@ -123,174 +64,13 @@
         ).then(obj => {
             util.initialize_op_codes(obj);
 
-            util.registerProgram(util.lookupIndicator("p", 3), create_program_5_10_p_3());
-            util.registerProgram(util.lookupIndicator("q", 3), create_program_5_10_q_3());
-            util.registerProgram(util.lookupIndicator("r", 3), create_program_5_10_r_3());
-            util.registerProgram(util.lookupIndicator("s", 2), create_program_5_10_s_2());
-            util.registerProgram(util.lookupIndicator("t", 2), create_program_5_10_t_2());
+            console.log('conc/3:' + JSON.stringify(create_program_5_18_conc_3()));
 
-            let info = util.runQuery(1, create_query_5_10(), obj);
+            util.registerProgram(util.lookupIndicator("conc", 3), create_program_5_18_conc_3());
 
-            util.display_results('test query5_10', 16, info);
-        });
-    }
+            let info = util.runQuery(1, create_query_5_18(), obj);
 
-    function create_program_5_unsafe_p_0() {
-        if(typeof util.opCodes.put_structure === 'undefined') {
-            alert('opCodes not initialized.');
-        }
-
-        /*
-        This predicate tests put_unsafe_value, showing a case where the
-        put_unsafe_value instruction must be the *first* reference to a permanent variable
-        in the last goal mentioning that variable (i.e. the first reference to X in r(X,X)).
-
-        p :- q(X), r(X,X).
-        */
-        return [
-            util.opCodes.allocate,                                  // allocate
-
-            util.opCodes.put_variable, 1, 1, 1,                     // put_variable Y1, A1
-            util.opCodes.call, util.lookupIndicator("q", 1), 1,     // call q/1, 1
-
-            util.opCodes.put_unsafe_value, 1, 1,                    // put_unsafe_value Y1, A1
-            util.opCodes.put_value, 1, 1, 2,                        // put_value Y1, A2
-            util.opCodes.deallocate,                                // deallocate
-            util.opCodes.execute, util.lookupIndicator("r", 2)      // execute r/2
-        ];
-    }
-
-    function create_program_5_unsafe_q_1 () {
-        if(typeof util.opCodes.put_structure === 'undefined') {
-            alert('opCodes not initialized.');
-        }
-
-        // q(a)
-        return [
-            util.opCodes.get_constant, util.lookup_atom("a"), 1,    // get_constant a, A3
-            util.opCodes.proceed                                    // proceed
-        ];
-    }
-
-    function create_program_5_unsafe_r_2 () {
-        if(typeof util.opCodes.put_structure === 'undefined') {
-            alert('opCodes not initialized.');
-        }
-
-        // r(X, Y)
-        return [
-            util.opCodes.get_variable, 0, 3, 1, // get_variable X3, A1
-            util.opCodes.get_value, 3, 2,       // get_value X3, A2
-            util.opCodes.proceed                // proceed
-        ];
-    }
-
-    function create_query_5_unsafe() {
-        if(typeof util.opCodes.put_structure === 'undefined') {
-            alert('opCodes not initialized.');
-        }
-
-        // ?- p.
-        return [
-             util.opCodes.call, util.lookupIndicator("p", 0), 0 // call p/0,0
-        ];
-    }
-
-    function test_query_5_unsafe() {
-
-        fetch('build/wam/language3d.wasm').then(response =>
-            response.arrayBuffer()
-        ).then(bytes =>
-            WebAssembly.instantiate(bytes, util.importObject)
-        ).then(obj => {
-            util.initialize_op_codes(obj);
-
-            util.registerProgram(util.lookupIndicator("p", 0), create_program_5_unsafe_p_0());
-            util.registerProgram(util.lookupIndicator("q", 1), create_program_5_unsafe_q_1());
-            util.registerProgram(util.lookupIndicator("r", 2), create_program_5_unsafe_r_2());
-
-            let info = util.runQuery(1, create_query_5_unsafe(), obj);
-
-            util.display_results('test query5_unsafe', 16, info);
-        });
-    }
-
-    function create_program_5_local_a_1() {
-        if(typeof util.opCodes.put_structure === 'undefined') {
-            alert('opCodes not initialized.');
-        }
-
-        /*
-        This predicate tests set_local_value, showing a case where the
-        set_local_value instruction must be the *first* reference to a non-local variable.
-
-        a(􏰉X):- b􏰉(f(􏰉X)).
-        */
-        return [
-            util.opCodes.get_variable, 0, 2, 1,                             // get_variable X2, A1
-            util.opCodes.put_structure, util.lookupIndicator("f", 1), 1,    // put_structure f/1, A1
-            util.opCodes.set_local_value, 0, 2,                             // set_local_value X2
-            util.opCodes.execute, util.lookupIndicator("b", 1)              // execute b/1
-        ];
-    }
-
-    function create_program_5_local_b_1 () {
-        if(typeof util.opCodes.put_structure === 'undefined') {
-            alert('opCodes not initialized.');
-        }
-
-        // b(f(g)).
-        return [
-            util.opCodes.get_structure, util.lookupIndicator("f",1), 1, // get_structure g/1, A1
-            util.opCodes.unify_constant, util.lookup_atom("g"),         // unify_constant g
-            util.opCodes.proceed                                        // proceed
-        ];
-    }
-
-    function create_program_5_local_c_1 () {
-        if(typeof util.opCodes.put_structure === 'undefined') {
-            alert('opCodes not initialized.');
-        }
-
-        // c(g)
-        return [
-            util.opCodes.get_constant, util.lookup_atom("g"), 1,    // get_constant g, A1
-            util.opCodes.proceed                                    // proceed
-        ];
-    }
-
-    function create_query_5_local() {
-        if(typeof util.opCodes.put_structure === 'undefined') {
-            alert('opCodes not initialized.');
-        }
-
-        // ?- a(X),c(X).
-        return [
-            util.opCodes.allocate,                              // allocate,
-            util.opCodes.put_variable, 1, 1, 1,                 // put_variable, Y1,A1
-            util.opCodes.call, util.lookupIndicator("a", 1), 1, // call a/1,1
-            util.opCodes.put_value, 1, 1, 1,                    // put_value, Y1,A1
-            util.opCodes.deallocate,                            // deallocate
-            util.opCodes.execute, util.lookupIndicator("c", 1)  // execute c/1
-        ];
-    }
-
-    function test_query_5_local() {
-
-        fetch('build/wam/language3d.wasm').then(response =>
-            response.arrayBuffer()
-        ).then(bytes =>
-            WebAssembly.instantiate(bytes, util.importObject)
-        ).then(obj => {
-            util.initialize_op_codes(obj);
-
-            util.registerProgram(util.lookupIndicator("a", 1), create_program_5_local_a_1());
-            util.registerProgram(util.lookupIndicator("b", 1), create_program_5_local_b_1());
-            util.registerProgram(util.lookupIndicator("c", 1), create_program_5_local_c_1());
-
-            let info = util.runQuery(1, create_query_5_local(), obj);
-
-            util.display_results('test query5_local', 16, info);
+            util.display_results('test query5_18', 16, info);
         });
     }
 
@@ -299,9 +79,7 @@
 <body>
 <div id="tests">
     <ul>
-        <li><button onclick="test_query_5_10();">test_query_5_10</button></li>
-        <li><button onclick="test_query_5_unsafe();">test_query_5_unsafe</button></li>
-        <li><button onclick="test_query_5_local();">test_query_5_local</button></li>
+        <li><button onclick="test_query_5_18();">test_query_5_18</button></li>
     </ul>
 </div>
 <div id="display">

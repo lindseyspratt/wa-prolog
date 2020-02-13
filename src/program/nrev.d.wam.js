@@ -1,4 +1,4 @@
-const util = require('./utilities.c.wam.js');
+const util = require('./utilities.d.wam.js');
 /*
 nrev([],[]).
 

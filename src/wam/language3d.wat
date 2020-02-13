@@ -64,6 +64,7 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     (import "js" "traceInstLog1" (func $traceInstLog1 (param i32) (param i32)))
     (import "js" "traceInstLog2" (func $traceInstLog2 (param i32) (param i32) (param i32)))
     (import "js" "traceInstLog3" (func $traceInstLog3 (param i32) (param i32) (param i32) (param i32)))
+    (import "js" "traceInstLog4" (func $traceInstLog4 (param i32) (param i32) (param i32) (param i32) (param i32)))
     (import "js" "traceStoreZero" (func $traceStoreZero (param $addr i32)))
     (import "js" "traceDerefZero" (func $traceDerefZero))
     (import "js" "traceStoreTrailToReg" (func $traceStoreTrailToReg))
@@ -72,6 +73,7 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     (import "js" "warnMaxTrail" (func $warnMaxTrail (param i32) (param i32)))
     (import "js" "warnInvalidMemoryLayout"
         (func $warnInvalidMemoryLayout (param i32) (param i32) (param i32) (param i32) (param i32) (param i32)))
+    (import "js" "warnInvalidSwitchTag" (func $warnInvalidSwitchTag (param i32)))
 
 ;;    (import "js" "consoleLog" (func $consoleLog (param i32)))
 
@@ -105,7 +107,7 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     (global $PDL (mut i32) (i32.const -1)) ;; $PDL is offset of the top of a push down list for use in unification.
     (global $S (mut i32) (i32.const 0)) ;; $S is current structure argument address (on heap). Used when $mode = $READ_MODE.
     (global $CP (mut i32) (i32.const 0)) ;; $CP is the Continuation Program instruction counter - to continue after returning from a call.
-    (global $CPPred (mut i32) (i32.const 0)) ;; $CPPred is the predicate code identifier for the continuation code. This identifier is used to set the host 'code' that is referenced be getCode func.
+    (global $CPPred (mut i32) (i32.const -1)) ;; $CPPred is the predicate code identifier for the continuation code. This identifier is used to set the host 'code' that is referenced be getCode func.
     (global $E (mut i32) (global.get $minStack)) ;; $E is the Environment location in the Stack.
     (global $B (mut i32) (global.get $minStack)) ;; $B is the base of the current choicepoint frame - $B can never validly be $minStack, so when the backtrack func tries to 'go to' $minStack it terminates the WAM.
     (global $HB (mut i32) (i32.const -1))
@@ -650,7 +652,11 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     )
 
     (func $callInstructionPermanentVariableCount (result i32)
-        (call $getCodeFromProgram (i32.sub (global.get $CP) (i32.const 1)) (global.get $CPPred))
+        (if (result i32)
+            (i32.eq (global.get $CPPred) (i32.const -1))
+            (then (i32.const 0))
+            (else (call $getCodeFromProgram (i32.sub (global.get $CP) (i32.const 1)) (global.get $CPPred)))
+        )
     )
 
     (func $nextStackFrameSlot (result i32)
@@ -725,6 +731,82 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
         )
     )
 
+(;
+    // The table is in two layers.
+    // The top layer is a sequence of tableSize 'buckets' (tableSize is a power of 2) - each
+    // bucket is an address of a second layer table.
+    // A second layer table has a word at code[address] with tableSize followed
+    // by a sequence of tableSize pairs of key-value words
+    // starting at code[address+1].
+    // The pairs are in Prolog term order by keys.
+    // For a large table this function can use a binary search.
+    // For small tables it is sufficient to do a linear search.
+
+    // tableSize bucket hash. Key is 0 to tableSize-1.
+    // hash is low order log2(tableSize) bits.
+
+table = [B1,...,Bn], n words, where 'n' is the tableSize. code[Bi] is address in code of subtable.
+subsize = code[code[Bi]]
+code[code[Bi]+1]...code[code[Bi]+subsize] = [S1, ..., Ssubsize]
+
+mask = tableSize - 1;
+bucketID = (val & mask) + 1;
+bucketOfst = bucketID - 1;
+
+bucketAddr = $T+buckefOfst;
+subtableAddress = getCode(bucketAddr);
+subsize = getCode(subtableAddress);
+subtableStart = subtableAddress+1;
+return search_bucket(val, subtableStart, subsize)
+;)
+    (func $get_hash (param $val i32) (param $T i32) (param $N i32) (result i32)
+        (local $mask i32)
+        (local $bucketID i32)
+        (local $bucketOfst i32)
+        (local $bucketAddr i32)
+        (local $subtableAddr i32)
+        (local $subtableStart i32)
+        (local $subsize i32)
+
+        (local.set $mask (i32.sub (local.get $N) (i32.const 1)))
+        (local.set $bucketID (i32.add (i32.and (local.get $val) (local.get $mask)) (i32.const 1)))
+        (local.set $bucketOfst (i32.sub (local.get $bucketID) (i32.const 1)))
+
+        (local.set $bucketAddr (i32.add (local.get $T) (local.get $bucketOfst)))
+        (local.set $subtableAddr (call $getCode (local.get $bucketAddr)))
+        (local.set $subsize (call $getCode (local.get $subtableAddr)))
+        (local.set $subtableStart (i32.add (local.get $subtableAddr) (i32.const 1)))
+        (return (call $search_bucket (local.get $val) (local.get $subtableStart) (local.get $subsize)))
+    )
+
+(;
+    // The table is a sequence of tableSize pairs of key-value words
+    // starting at code[$start].
+    // The pairs are in any order.
+    // If $val matches a 'key' the $search_bucket returns the key's value.
+    // Otherwise it returns 0.
+;)
+
+    (func $search_bucket (param $val i32) (param $start i32) (param $size i32) (result i32)
+        (local $limit i32) (local $searchAddr i32) (local $key i32)
+        (local.set $limit (i32.add (local.get $start) (i32.mul (local.get $size) (i32.const 2))))
+        (local.set $searchAddr (local.get $start))
+        (if (i32.ge_u (local.get $searchAddr) (local.get $limit))
+            (then (return (i32.const 0)))
+        )
+        (block
+            (loop
+                (local.set $key (call $getCode (local.get $searchAddr)))
+                (if (i32.eq (local.get $key) (local.get $val))
+                    (then (return (i32.add (local.get $searchAddr) (i32.const 1)))))
+                (br_if 1 (i32.eq (local.get $searchAddr) (local.get $limit)))
+                (local.set $searchAddr (i32.add (local.get $searchAddr) (i32.const 2)))
+                (br 0)
+            )
+        )
+        (return (i32.const 0))
+    )
+
     (func $initialize_globals
         (global.set $H (global.get $minHeap)) ;; $H is the current top of the heap.
         (global.set $P (i32.const -1)) ;; $P is the 'program' instruction counter. The instruction is at (call $getCode (global.get $P)).
@@ -732,7 +814,7 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
         (global.set $PDL (i32.const -1)) ;; $PDL is offset of the top of a push down list for use in unification.
         (global.set $S (i32.const 0)) ;; $S is current structure argument address (on heap). Used when $mode = $READ_MODE.
         (global.set $CP (i32.const 0)) ;; $CP is the Continuation Program instruction counter - to continue after returning from a call.
-        (global.set $CPPred (i32.const 0)) ;; $CPPred is the predicate code identifier for the continuation code. This identifier is used to set the host 'code' that is referenced be getCode func.
+        (global.set $CPPred (i32.const -1)) ;; $CPPred is the predicate code identifier for the continuation code. This identifier is used to set the host 'code' that is referenced be getCode func.
         (global.set $E (i32.const -1)) ;; $E is the Environment location in the Stack.
         (global.set $B (i32.const -1)) ;; $B is the base of the current choicepoint frame - $B can never validly be less than or equal to $minStack, so when the backtrack func tries to 'go to' an address less than or equal to $minStack it terminates the WAM.
         (global.set $HB (i32.const -1))
@@ -852,6 +934,9 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     (func $try_opcode (result i32) (i32.const 30))
     (func $retry_opcode (result i32) (i32.const 31))
     (func $trust_opcode (result i32) (i32.const 32))
+    (func $switch_on_term_opcode (result i32) (i32.const 33))
+    (func $switch_on_constant_opcode (result i32) (i32.const 34))
+    (func $switch_on_structure_opcode (result i32) (i32.const 35))
 
     (func $evalOp (param $op i32)
         (block
@@ -887,7 +972,10 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
         (block
         (block
         (block
-            (br_table 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 (local.get $op))
+        (block
+        (block
+        (block
+            (br_table 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 (local.get $op))
             ) ;; 0
             (call $op0) ;; nop
             return
@@ -987,6 +1075,15 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
          ) ;; 32
              (call $op32) ;; $trust
              return
+         ) ;; 33
+             (call $op33) ;; $switch_on_term
+             return
+         ) ;; 34
+             (call $op34) ;; $switch_on_constant
+             return
+         ) ;; 35
+             (call $op35) ;; $switch_on_structure
+             return
  )
 
     (func $traceInst0 (param $inst i32)
@@ -1000,6 +1097,10 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     )
     (func $traceInst3 (param $inst i32)
         (call $traceInstLog3 (local.get $inst) (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)) (call $getCodeArg (i32.const 3)))
+    )
+    (func $traceInst4 (param $inst i32)
+        (call $traceInstLog4 (local.get $inst) (call $getCodeArg (i32.const 1))
+         (call $getCodeArg (i32.const 2)) (call $getCodeArg (i32.const 3)) (call $getCodeArg (i32.const 4)))
     )
 
     ;; trace: nop
@@ -1220,6 +1321,24 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
         (call $traceInst1 (i32.const 32))
         (call $trust (call $getCodeArg (i32.const 1)))
         ;; $trust sets $P
+    )
+
+    (func $op33 ;; switch_on_term
+        (call $traceInst4 (i32.const 33))
+        (call $switch_on_term (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)) (call $getCodeArg (i32.const 3)) (call $getCodeArg (i32.const 4)))
+        ;; $switch_on_term sets $P
+    )
+
+    (func $op34 ;; switch_on_constant
+        (call $traceInst2 (i32.const 34))
+        (call $switch_on_constant (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)) )
+        ;; $switch_on_constant sets $P
+    )
+
+    (func $op35 ;; switch_on_structure
+        (call $traceInst2 (i32.const 35))
+        (call $switch_on_structure (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)) )
+        ;; $switch_on_structure sets $P
     )
 
     (func $putStructure (param $indicator i32) (param $reg i32)
@@ -1689,6 +1808,55 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
 ;; switch_on_constant N,T
 ;; switch_on_structure N,T
 
+    (func $switch_on_term (param $V i32) (param $C i32) (param $L i32) (param $S i32)
+        (local $a1Addr i32) (local $term i32) (local $tag i32) (local $next i32)
+        (local.set $a1Addr (call $deref (call $tempRegisterAddress (i32.const 1))) ) ;; deref(A1)
+        (local.set $term (call $loadFromAddress (local.get $a1Addr)))
+        (local.set $tag (call $termTag (local.get $term)))
+        (local.set $next
+            (if (result i32)
+                (i32.eq (local.get $tag) (global.get $TAG_REF))
+                (then (local.get $V))
+            (else (if (result i32) (i32.eq (local.get $tag) (global.get $TAG_CON))
+                (then (local.get $C))
+            (else (if (result i32) (i32.eq (local.get $tag) (global.get $TAG_LIS))
+                (then (local.get $L))
+            (else (if (result i32) (i32.eq (local.get $tag) (global.get $TAG_STR))
+                (then (local.get $S))
+                (else (call $warnInvalidSwitchTag (local.get $tag)) (return (i32.const 0)))
+            )) )) ))
+            )
+        )
+        (if (i32.eqz (local.get $next))
+            (then (call $backtrack))
+            (else (global.set $P (local.get $next)))
+        )
+    )
+
+    (func $switch_on_constant (param $N i32) (param $T i32)
+        (local $a1Addr i32) (local $term i32) (local $val i32) (local $inst i32)
+        (local.set $a1Addr (call $deref (call $tempRegisterAddress (i32.const 1))) ) ;; deref(A1)
+        (local.set $term (call $loadFromAddress (local.get $a1Addr)))
+        (local.set $val (call $termVal (local.get $term)))
+        (local.set $inst (call $get_hash (local.get $val) (local.get $T) (local.get $N))) ;; $inst === 0 -> not found
+        (if (i32.eqz (local.get $inst))
+            (then (call $backtrack))
+            (else (global.set $P (local.get $inst)))
+        )
+    )
+
+    (func $switch_on_structure (param $N i32) (param $T i32)
+        (local $a1Addr i32) (local $term i32) (local $val i32) (local $inst i32)
+        (local.set $a1Addr (call $deref (call $tempRegisterAddress (i32.const 1))) ) ;; deref(A1)
+        (local.set $term (call $loadFromAddress (local.get $a1Addr)))
+        (local.set $val (call $termVal (local.get $term)))
+        (local.set $inst (call $get_hash (local.get $val) (local.get $T) (local.get $N))) ;; $inst === 0 -> not found
+        (if (i32.eqz (local.get $inst))
+            (then (call $backtrack))
+            (else (global.set $P (local.get $inst)))
+        )
+    )
+
     (export "setH" (func $setH))
     (export "shiftTag" (func $shiftTag))
     (export "tagStructure" (func $tagStructure))
@@ -1727,6 +1895,12 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     (export "put_unsafe_value_opcode" (func $put_unsafe_value_opcode))
     (export "set_local_value_opcode" (func $set_local_value_opcode))
     (export "unify_local_value_opcode" (func $unify_local_value_opcode))
+    (export "try_opcode" (func $try_opcode))
+    (export "retry_opcode" (func $retry_opcode))
+    (export "trust_opcode" (func $trust_opcode))
+    (export "switch_on_term_opcode" (func $switch_on_term_opcode))
+    (export "switch_on_constant_opcode" (func $switch_on_constant_opcode))
+    (export "switch_on_structure_opcode" (func $switch_on_structure_opcode))
 
     (export "run" (func $run))
 )

@@ -70,6 +70,7 @@ let importObject = {js:
             traceInstLog1: traceInstLog1,
             traceInstLog2: traceInstLog2,
             traceInstLog3: traceInstLog3,
+            traceInstLog4: traceInstLog4,
             traceStoreZero: traceStoreZero,
             traceDerefZero: traceDerefZero,
             traceStoreTrailToReg: traceStoreTrailToReg,
@@ -77,6 +78,7 @@ let importObject = {js:
             warnMaxStack: warnMaxStack,
             warnMaxTrail: warnMaxTrail,
             warnInvalidMemoryLayout: warnInvalidMemoryLayout,
+            warnInvalidSwitchTag: warnInvalidSwitchTag,
         }};
 
 function lookupAtomWA(start, length){
@@ -233,7 +235,23 @@ function initialize_op_codes(obj) {
     opCodes.try = obj.instance.exports.try_opcode();
     opCodes.retry = obj.instance.exports.retry_opcode();
     opCodes.trust = obj.instance.exports.trust_opcode();
+    opCodes.switch_on_term = obj.instance.exports.switch_on_term_opcode();
+    opCodes.switch_on_constant = obj.instance.exports.switch_on_constant_opcode();
+    opCodes.switch_on_structure = obj.instance.exports.switch_on_structure_opcode();
 }
+
+function validate_op_codes() {
+    if (typeof opCodes.put_structure === 'undefined') {
+        alert('opCodes not initialized.');
+    }
+
+    for(let i = 0;i < opCodes.length;i++) {
+        if (typeof opCodes[i] !== 'number') {
+            alert('opCode[' + i + '] not a number.');
+        }
+    }
+}
+
 
 function getOpCodeName(opCode) {
     let keys = Object.keys(opCodes);
@@ -440,6 +458,11 @@ function traceInstLog3 (opCode, arg1, arg2, arg3) {
     console.log(traceInstPrefix(3) + opName + " " + arg1 + ", " + arg2 + ", " + arg3 + ";");
 }
 
+function traceInstLog4 (opCode, arg1, arg2, arg3, arg4) {
+    let opName = getOpCodeName(opCode);
+    console.log(traceInstPrefix(4) + opName + " " + arg1 + ", " + arg2 + ", " + arg3 + ", " + arg4 + ";");
+}
+
 function traceStoreZero (addr) {
     console.log ('warning: storing 0 to address ' + addr);
 }
@@ -469,6 +492,12 @@ function warnInvalidMemoryLayout(heapMin, heapMax, stackMin, stackMax, registerM
 
     console.log(msg);
     alert(msg);
+}
+function warnInvalidSwitchTag(tag) {
+    let msg = 'warning: switch tag is invalid = ' + tag + '.';
+    console.log(msg);
+    alert(msg);
+
 }
 const TAG_REF = 0; // 0x00000000
 const TAG_STR = 1; // 0x08000000
@@ -507,6 +536,7 @@ function get_val(p)
 module.exports.importObject = importObject;
 module.exports.runQuery = runQuery;
 module.exports.initialize_op_codes = initialize_op_codes;
+module.exports.validate_op_codes = validate_op_codes;
 module.exports.opCodes = opCodes;
 module.exports.lookup_atom = lookup_atom;
 module.exports.find_atom = find_atom;
