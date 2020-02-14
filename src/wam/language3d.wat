@@ -65,6 +65,7 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     (import "js" "traceInstLog2" (func $traceInstLog2 (param i32) (param i32) (param i32)))
     (import "js" "traceInstLog3" (func $traceInstLog3 (param i32) (param i32) (param i32) (param i32)))
     (import "js" "traceInstLog4" (func $traceInstLog4 (param i32) (param i32) (param i32) (param i32) (param i32)))
+    (import "js" "traceInstSwitchLog" (func $traceInstSwitchLog (param i32) (param i32)))
     (import "js" "traceStoreZero" (func $traceStoreZero (param $addr i32)))
     (import "js" "traceDerefZero" (func $traceDerefZero))
     (import "js" "traceStoreTrailToReg" (func $traceStoreTrailToReg))
@@ -135,11 +136,12 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     (global $BkCE i32 (i32.const 1) )           ;; Continuation Environment = STACK[$B + STACK[$B] + $BkCE]
     (global $BkCP i32 (i32.const 2) )           ;; Continuation Pointer = STACK[$B + STACK[$B] + $BkCP]
     (global $BkB i32 (i32.const 3))             ;; Previous choice point frame = STACK[$B + STACK[$B] + $BkB]
-    (global $BkBP i32 (i32.const 4))            ;; Backtrack Pointer (next clause word location in code for current program) = STACK[$B + STACK[$B] + $BkBP]
+    (global $BkBP i32 (i32.const 4))            ;; Backtrack Pointer (next clause word location in code for $BkBPred program) = STACK[$B + STACK[$B] + $BkBP]
     (global $BkTR i32 (i32.const 5))            ;; Trail Pointer (address in TRAIL) = STACK[$B + STACK[$B] + $BkTR]
     (global $BkH i32 (i32.const 6))             ;; Heap pointer = STACK[$B + STACK[$B] + $BkH]
     (global $BkI i32 (i32.const 7))             ;; number of executes invoked with no 'proceed' (indicating incomplete inferences) since this frame was created and prior to subsequent frame.
-    (global $BkSuffixSize i32 (i32.const 7))    ;; Number of slots in the choicepoint frame  following the argument slots.
+    (global $BkBPred i32 (i32.const 8))         ;; Backtrack program (code contains next clause word location from $BkBP) = STACK[$B + STACK[$B] + $BkBPred]
+    (global $BkSuffixSize i32 (i32.const 8))    ;; Number of slots in the choicepoint frame  following the argument slots.
 
     (global $fail (mut i32) (i32.const 0))
     (global $mode (mut i32) (i32.const 0))
@@ -301,14 +303,14 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     (func $storeToAddress (param $addr i32) (param $val i32)
 ;;        (if
 ;;            (i32.eq (local.get $val) (i32.const 0))
-;;            (then ;;(call $traceStoreZero (local.get $addr)))
+;;            (then (call $traceStoreZero (local.get $addr)))
 ;;        (else (if (i32.and
 ;;                        (i32.eq (local.get $addr) (i32.const 1))
 ;;                        (i32.eq (local.get $val) (global.get $minTrail)))
-;;                    (then ;;(call $traceStoreTrailToReg) )
+;;                    (then (call $traceStoreTrailToReg) )
 ;;               )
 ;;        ) )
-        ;;(call $traceStore (local.get $addr) (local.get $val))
+        (call $traceStore (local.get $addr) (local.get $val))
         (i32.store (call $wordToByteOffset (local.get $addr)) (local.get $val))
     )
 
@@ -414,7 +416,7 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     (func $deref (param $addr i32) (result i32)
         (local $term i32)
 ;;        (if (i32.eq (local.get $addr) (i32.const 0))
-;;            (then ;;(call $traceDerefZero))
+;;            (then (call $traceDerefZero))
 ;;        )
         (local.set $term (call $loadFromStore (local.get $addr)) )
         (if (result i32)
@@ -569,6 +571,17 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
                         )
                     )
                 )
+                (global.set $PPred
+                     (call $loadFromStack
+                        (i32.add
+                            (global.get $B)
+                            (i32.add
+                                (global.get $BkBPred)
+                                (call $loadFromStack (global.get $B)))
+                        )
+                    )
+                )
+                (call $setCode (global.get $PPred))
             )
         )
         (local.set $old (call $resetIncompleteInferences)) ;; discard the incomplete inference count for this choicepoint frame or for the 'base'.
@@ -618,6 +631,10 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
         (call $storeToStack
             (i32.add (local.get $lastFrameArg) (global.get $BkBP))
             (local.get $label)
+        )
+        (call $storeToStack
+            (i32.add (local.get $lastFrameArg) (global.get $BkBPred))
+            (global.get $PPred)
         )
         (call $storeToStack
             (i32.add (local.get $lastFrameArg) (global.get $BkTR))
@@ -827,9 +844,15 @@ return search_bucket(val, subtableStart, subsize)
 
         (local.set $bucketAddr (i32.add (local.get $T) (local.get $bucketOfst)))
         (local.set $subtableAddr (call $getCode (local.get $bucketAddr)))
-        (local.set $subsize (call $getCode (local.get $subtableAddr)))
-        (local.set $subtableStart (i32.add (local.get $subtableAddr) (i32.const 1)))
-        (return (call $search_bucket (local.get $val) (local.get $subtableStart) (local.get $subsize)))
+        (if (result i32)
+            (i32.eqz (local.get $subtableAddr))
+            (then (return (i32.const 0))) ;; 0 indicates failure.
+            (else
+                (local.set $subsize (call $getCode (local.get $subtableAddr)))
+                (local.set $subtableStart (i32.add (local.get $subtableAddr) (i32.const 1)))
+                (return (call $search_bucket (local.get $val) (local.get $subtableStart) (local.get $subsize)))
+            )
+        )
     )
 
 (;
@@ -849,9 +872,9 @@ return search_bucket(val, subtableStart, subsize)
         )
         (block
             (loop
-                (local.set $key (call $getCode (local.get $searchAddr)))
+                (local.set $key (call $getCode (local.get $searchAddr))) ;; $key is in code[$searchAddr]
                 (if (i32.eq (local.get $key) (local.get $val))
-                    (then (return (i32.add (local.get $searchAddr) (i32.const 1)))))
+                    (then (return (call $getCode (i32.add (local.get $searchAddr) (i32.const 1)))))) ;; $keyValue is in code[$searchAddr+1].
                 (br_if 1 (i32.eq (local.get $searchAddr) (local.get $limit)))
                 (local.set $searchAddr (i32.add (local.get $searchAddr) (i32.const 2)))
                 (br 0)
@@ -1156,6 +1179,9 @@ return search_bucket(val, subtableStart, subsize)
          (call $getCodeArg (i32.const 2)) (call $getCodeArg (i32.const 3)) (call $getCodeArg (i32.const 4)))
     )
 
+    (func $traceInstSwitch
+        (call $traceInstSwitchLog (global.get $P) (global.get $PPred))
+    )
     ;; trace: nop
     (func $op0 ;; No operation
         (call $addToP (i32.const 1))
@@ -1163,44 +1189,44 @@ return search_bucket(val, subtableStart, subsize)
 
     ;; trace: put_structure, A1, A2
     (func $op1 ;; $putStructure
-        ;;(call $traceInst2 (i32.const 1))
+        (call $traceInst2 (i32.const 1))
         (call $putStructure (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
         (call $addToP (i32.const 3))
     )
 
     ;; trace: setVariable, A1
     (func $op2 ;; setVariable
-        ;;(call $traceInst1 (i32.const 2))
+        (call $traceInst1 (i32.const 2))
         (call $setVariable (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op3 ;; putVariable
-        ;;(call $traceInst3 (i32.const 3))
+        (call $traceInst3 (i32.const 3))
         (call $putVariable (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)) (call $getCodeArg (i32.const 3)))
         (call $addToP (i32.const 4))
     )
 
     (func $op4 ;; getVariable X/Ytype, permanent or temporary target register ID, source (argument temporary) register ID
-        ;;(call $traceInst3 (i32.const 4))
+        (call $traceInst3 (i32.const 4))
         (call $getVariable (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)) (call $getCodeArg (i32.const 3)))
         (call $addToP (i32.const 4))
     )
 
     (func $op5 ;; setValue
-        ;;(call $traceInst1 (i32.const 5))
+        (call $traceInst1 (i32.const 5))
         (call $setValue (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op6 ;; putValue
-        ;;(call $traceInst3 (i32.const 6))
+        (call $traceInst3 (i32.const 6))
         (call $putValue (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)) (call $getCodeArg (i32.const 3)))
         (call $addToP (i32.const 4))
     )
 
     (func $op7 ;; getValue
-        ;;(call $traceInst2 (i32.const 7))
+        (call $traceInst2 (i32.const 7))
         (call $getValue (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
         (if (global.get $fail)
             (then (call $backtrack))
@@ -1209,7 +1235,7 @@ return search_bucket(val, subtableStart, subsize)
     )
 
     (func $op8 ;; getStructure
-        ;;(call $traceInst2 (i32.const 8))
+        (call $traceInst2 (i32.const 8))
         (call $getStructure (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
         (if (global.get $fail)
             (then (call $backtrack))
@@ -1218,13 +1244,13 @@ return search_bucket(val, subtableStart, subsize)
     )
 
     (func $op9 ;; unifyVariable
-        ;;(call $traceInst1 (i32.const 9))
+        (call $traceInst1 (i32.const 9))
         (call $unifyVariable (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op10 ;; unifyValue
-        ;;(call $traceInst1 (i32.const 10))
+        (call $traceInst1 (i32.const 10))
         (call $unifyValue (call $getCodeArg (i32.const 1)))
         (if (global.get $fail)
             (then (call $backtrack))
@@ -1233,55 +1259,55 @@ return search_bucket(val, subtableStart, subsize)
     )
 
     (func $op11 ;; call
-        ;;(call $traceInst2 (i32.const 11))
+        (call $traceInst2 (i32.const 11))
         (call $call (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
         ;; call manages $P directly, resetting it to 0 for the new 'code' for the new predicate.
     )
 
     (func $op12 ;; proceed
-        ;;(call $traceInst0 (i32.const 12))
+        (call $traceInst0 (i32.const 12))
         (call $proceed)
         ;; proceed manages $P directly, resetting it to $CP.
     )
 
     (func $op13 ;; allocate
-        ;;(call $traceInst0 (i32.const 13))
+        (call $traceInst0 (i32.const 13))
         (call $allocate)
         (call $addToP (i32.const 1))
     )
 
     (func $op14 ;; deallocate
-        ;;(call $traceInst0 (i32.const 14))
+        (call $traceInst0 (i32.const 14))
         (call $deallocate)
         ;; deallocate manages $P directly, resetting it to STACK[$E + $ECP].
     )
 
     (func $op15 ;; try_me_else
-        ;;(call $traceInst1 (i32.const 15))
+        (call $traceInst1 (i32.const 15))
         (call $try_me_else (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op16 ;; retry_me_else
-        ;;(call $traceInst1 (i32.const 16))
+        (call $traceInst1 (i32.const 16))
         (call $retry_me_else (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op17 ;; trust_me
-        ;;(call $traceInst0 (i32.const 17))
+        (call $traceInst0 (i32.const 17))
         (call $trust_me)
         (call $addToP (i32.const 1))
     )
 
     (func $op18 ;; put_constant
-        ;;(call $traceInst2 (i32.const 18))
+        (call $traceInst2 (i32.const 18))
         (call $put_constant (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
         (call $addToP (i32.const 3))
     )
 
     (func $op19 ;; get_constant
-        ;;(call $traceInst2 (i32.const 19))
+        (call $traceInst2 (i32.const 19))
         (call $get_constant (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
         (if (global.get $fail)
             (then (call $backtrack))
@@ -1290,13 +1316,13 @@ return search_bucket(val, subtableStart, subsize)
     )
 
     (func $op20 ;; set_constant
-        ;;(call $traceInst1 (i32.const 20))
+        (call $traceInst1 (i32.const 20))
         (call $set_constant (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op21 ;; unify_constant
-        ;;(call $traceInst1 (i32.const 21))
+        (call $traceInst1 (i32.const 21))
         (call $unify_constant (call $getCodeArg (i32.const 1)))
         (if (global.get $fail)
             (then (call $backtrack))
@@ -1305,13 +1331,13 @@ return search_bucket(val, subtableStart, subsize)
     )
 
     (func $op22 ;; put_list
-        ;;(call $traceInst1 (i32.const 22))
+        (call $traceInst1 (i32.const 22))
         (call $put_list (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op23 ;; get_list
-        ;;(call $traceInst1 (i32.const 23))
+        (call $traceInst1 (i32.const 23))
         (call $get_list (call $getCodeArg (i32.const 1)))
         (if (global.get $fail)
             (then (call $backtrack))
@@ -1320,37 +1346,37 @@ return search_bucket(val, subtableStart, subsize)
     )
 
     (func $op24 ;; set_void
-        ;;(call $traceInst1 (i32.const 24))
+        (call $traceInst1 (i32.const 24))
         (call $set_void (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op25 ;; unify_void
-        ;;(call $traceInst1 (i32.const 25))
+        (call $traceInst1 (i32.const 25))
         (call $unify_void (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op26 ;; execute
-        ;;(call $traceInst1 (i32.const 26))
+        (call $traceInst1 (i32.const 26))
         (call $execute (call $getCodeArg (i32.const 1)))
         ;; $execute updates $P
     )
 
     (func $op27 ;; put_unsafe_value
-        ;;(call $traceInst2 (i32.const 27))
+        (call $traceInst2 (i32.const 27))
         (call $put_unsafe_value (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
         (call $addToP (i32.const 3))
     )
 
     (func $op28 ;; set_local_value
-        ;;(call $traceInst2 (i32.const 28))
+        (call $traceInst2 (i32.const 28))
         (call $set_local_value (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
         (call $addToP (i32.const 3))
     )
 
     (func $op29 ;; unify_local_value
-        ;;(call $traceInst2 (i32.const 29))
+        (call $traceInst2 (i32.const 29))
         (call $unify_local_value (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
         (if (global.get $fail)
             (then (call $backtrack))
@@ -1359,38 +1385,38 @@ return search_bucket(val, subtableStart, subsize)
     )
 
     (func $op30 ;; try
-        ;;(call $traceInst1 (i32.const 30))
+        (call $traceInst1 (i32.const 30))
         (call $try (call $getCodeArg (i32.const 1)))
         ;; $try sets $P
     )
 
     (func $op31 ;; retry
-        ;;(call $traceInst1 (i32.const 31))
+        (call $traceInst1 (i32.const 31))
         (call $retry (call $getCodeArg (i32.const 1)))
         ;; $retry sets $P
     )
 
     (func $op32 ;; trust
-        ;;(call $traceInst1 (i32.const 32))
+        (call $traceInst1 (i32.const 32))
         (call $trust (call $getCodeArg (i32.const 1)))
         ;; $trust sets $P
     )
 
     (func $op33 ;; switch_on_term
-        ;;(call $traceInst4 (i32.const 33))
+        (call $traceInst4 (i32.const 33))
         (call $switch_on_term (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)) (call $getCodeArg (i32.const 3)) (call $getCodeArg (i32.const 4)))
         ;; $switch_on_term sets $P
     )
 
     (func $op34 ;; switch_on_constant
-        ;;(call $traceInst2 (i32.const 34))
-        (call $switch_on_constant (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)) )
+        (call $traceInstSwitch)
+        (call $switch_on_constant (call $getCodeArg (i32.const 1)) (i32.add (global.get $P) (i32.const 2)) )
         ;; $switch_on_constant sets $P
     )
 
     (func $op35 ;; switch_on_structure
-        ;;(call $traceInst2 (i32.const 35))
-        (call $switch_on_structure (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)) )
+        (call $traceInstSwitch)
+        (call $switch_on_structure (call $getCodeArg (i32.const 1)) (i32.add (global.get $P) (i32.const 2)) )
         ;; $switch_on_structure sets $P
     )
 
@@ -1604,6 +1630,9 @@ return search_bucket(val, subtableStart, subsize)
         (call $storeToStack
             (i32.add (local.get $lastFrameArg) (global.get $BkBP))
             (local.get $label))
+        (call $storeToStack
+            (i32.add (local.get $lastFrameArg) (global.get $BkBPred))
+            (global.get $PPred))
         (local.set $backTR (call $loadFromStack (i32.add (local.get $lastFrameArg) (global.get $BkTR))))
         (call $unwindTrail (local.get $backTR) (global.get $TR) )
         (global.set $TR (local.get $backTR))
@@ -1844,6 +1873,9 @@ return search_bucket(val, subtableStart, subsize)
         (call $storeToStack
             (i32.add (local.get $lastFrameArg) (global.get $BkBP))
             (i32.add (global.get $P) (i32.const 2)))
+        (call $storeToStack
+            (i32.add (local.get $lastFrameArg) (global.get $BkBPred))
+            (global.get $PPred))
         (local.set $backTR (call $loadFromStack (i32.add (local.get $lastFrameArg) (global.get $BkTR))))
         (call $unwindTrail (local.get $backTR) (global.get $TR) )
         (global.set $TR (local.get $backTR))

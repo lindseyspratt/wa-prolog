@@ -71,6 +71,7 @@ let importObject = {js:
             traceInstLog2: traceInstLog2,
             traceInstLog3: traceInstLog3,
             traceInstLog4: traceInstLog4,
+            traceInstSwitchLog: traceInstSwitchLog,
             traceStoreZero: traceStoreZero,
             traceDerefZero: traceDerefZero,
             traceStoreTrailToReg: traceStoreTrailToReg,
@@ -150,10 +151,85 @@ function lookupIndicator(name, arity) {
     return i;
 }
 
+function indicator_to_string(indicator) {
+    let pair = indicators[indicator];
+    let functorName = find_atom(pair[0]);
+    return functorName + '/' + pair[1];
+}
+
 function registerProgram(indicator, code) {
     programs[indicator] = code;
 }
 
+// create two level hash table from list of key/value pairs.
+// level 1: [B0, ..., Bn-1] where Bi is the offset of
+// bucket I.
+// level 2: [Vi0, ..., Vi(m-1)] where Vij is a value in bucket i. These values are *not* ordered (yet).
+// mask = n-1;
+// i = integer(mask & value)
+
+let hashCounter = 0; // the hashCounter ensures that all hash table labels are distinct.
+
+function expand_hash(program) {
+    let result = [];
+    for(let i = 0;i < program.length; i++) {
+        if(typeof program[i] === 'object' && program[i].hash) {
+            let table = program[i].hash;
+            let mask = 3; // 4 bucket hash; buckets 0 through 3.
+            let buckets = [[],[],[],[]];
+            for(let k = 0;k < table.length;k+=2) {
+                let key = table[k];
+                let value = table[k+1];
+                let bucketID = key & mask;
+                let bucket = buckets[bucketID];
+                bucket.push(key);
+                bucket.push(value);
+            }
+
+            // put bucket hash level 1 in result.
+            let labels = [];
+            for(let j = 0;j < buckets.length;j++) {
+                if(buckets[j].length > 0) {
+                    labels[j] = 'Hash' + hashCounter++;
+                    result.push({ref: labels[j]});
+                } else {
+                    result.push(0);
+                }
+            }
+
+            // put bucket hash level 2 in result.
+            for(let j = 0;j < buckets.length;j++) {
+                let bucket = buckets[j];
+                if(bucket.length > 0) {
+                    result.push({label: labels[j]});
+                    result.push(bucket.length / 2); // size of table is the number of key/value pairs, which is half the length of the bucket.
+                    for (let m = 0; m < bucket.length; m++) {
+                        result.push(bucket[m]);
+                    }
+                }
+            }
+        } else {
+            result.push(program[i]);
+        }
+    }
+
+    return result;
+}
+
+function flatten(program) {
+    let result = [];
+    for(let i = 0;i < program.length; i++) {
+        if(typeof program[i] === 'object' && program[i].codes) {
+            let subCodes = flatten(program[i].codes);
+            for(let k = 0;k < subCodes.length;k++) {
+                result.push(subCodes[k]);
+            }
+        } else {
+            result.push(program[i]);
+        }
+    }
+    return result;
+}
 function process_labels(program) {
     let map = {};
     let result = [];
@@ -463,6 +539,50 @@ function traceInstLog4 (opCode, arg1, arg2, arg3, arg4) {
     console.log(traceInstPrefix(4) + opName + " " + arg1 + ", " + arg2 + ", " + arg3 + ", " + arg4 + ";");
 }
 
+function traceInstSwitchLog (codeOfst, programOfst) {
+    // codeOfst + 1 = N, size
+    // codeOfst + 2 = T, table
+    let result = '';
+    let codes = programs[programOfst];
+    let inst = codes[codeOfst];
+    let size = codes[codeOfst+1];
+    let instName = getOpCodeName(inst);
+    let tableOfst = codeOfst + 2;
+
+    // 4-bucket hash two levels: level 1 bucket locations, level 2 non-empty buckets.
+    let bucketLocations = [];
+    for(let i = 0;i < 4;i++) {
+        bucketLocations.push(codes[tableOfst+i]);
+    }
+
+    for(let i = 0;i < bucketLocations.length;i++) {
+        let bucketLocation = bucketLocations[i];
+        if(bucketLocation !== 0) {
+            let size = codes[bucketLocation]; // size is the number of key/value pairs in the bucket. There are size*2 items in the bucket: [key1, value1, key2, value2, ..., keySize, valueSize]
+            result += i + '(' + bucketLocation + ')[';
+            let localResult = '';
+            for(let j = bucketLocation+1;j < bucketLocation+1+size*2;j+=2) {
+                let key = codes[j];
+                let value = codes[j+1];
+                if(localResult !== '') {
+                    localResult += ', ';
+                }
+                let keyName;
+
+                if (instName === 'switch_on_constant') {
+                    keyName = find_atom(key);
+                } else {
+                    // must be switch_on_structure
+                    keyName = indicator_to_string(key);
+                }
+                localResult += keyName + '(' + key + ')' + ': ' + value;
+            }
+            result += localResult + '] ';
+        }
+    }
+    console.log('inst: ' + currentIndicator + '.' + codeOfst + ' ' + instName + ' ' + size + ' ' + result);
+}
+
 function traceStoreZero (addr) {
     console.log ('warning: storing 0 to address ' + addr);
 }
@@ -543,6 +663,8 @@ module.exports.find_atom = find_atom;
 module.exports.lookupIndicator = lookupIndicator;
 module.exports.registerProgram = registerProgram;
 module.exports.process_labels = process_labels;
+module.exports.flatten = flatten;
+module.exports.expand_hash = expand_hash;
 module.exports.getOpCodeName = getOpCodeName;
 module.exports.display_results = display_results;
 module.exports.interpret_memory = interpret_memory;

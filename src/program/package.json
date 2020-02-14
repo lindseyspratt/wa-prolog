@@ -12,6 +12,7 @@
     "build-nrev-c": "../../node_modules/.bin/browserify -r ./nrev.c.wam.js:nrev -r ./utilities.c.wam.js:utilities > ../../build/program/nrev.c.js",
     "build-util-c": "../../node_modules/.bin/browserify -r ./utilities.c.wam.js:utilities > ../../build/program/util.c.js",
     "build-nrev-d": "../../node_modules/.bin/browserify -r ./nrev.d.wam.js:nrev -r ./utilities.d.wam.js:utilities > ../../build/program/nrev.d.js",
-    "build-util-d": "../../node_modules/.bin/browserify -r ./utilities.d.wam.js:utilities > ../../build/program/util.d.js"
+    "build-util-d": "../../node_modules/.bin/browserify -r ./utilities.d.wam.js:utilities > ../../build/program/util.d.js",
+    "build-call-d": "../../node_modules/.bin/browserify -r ./call.d.wam.js:call -r ./utilities.d.wam.js:utilities > ../../build/program/call.d.js"
   }
 }
