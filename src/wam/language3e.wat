@@ -111,6 +111,7 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     (global $CPPred (mut i32) (i32.const -1)) ;; $CPPred is the predicate code identifier for the continuation code. This identifier is used to set the host 'code' that is referenced be getCode func.
     (global $E (mut i32) (global.get $minStack)) ;; $E is the Environment location in the Stack.
     (global $B (mut i32) (global.get $minStack)) ;; $B is the base of the current choicepoint frame - $B can never validly be $minStack, so when the backtrack func tries to 'go to' $minStack it terminates the WAM.
+    (global $B0 (mut i32) (global.get $minStack)) ;; $B0 is the 'cut register'. It is the value of $B as of the most recent call or execute instruction.
     (global $HB (mut i32) (i32.const -1))
     (global $TR (mut i32) (global.get $minTrail))
     (global $num_of_args (mut i32) (i32.const -1))
@@ -141,7 +142,8 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     (global $BkH i32 (i32.const 6))             ;; Heap pointer = STACK[$B + STACK[$B] + $BkH]
     (global $BkI i32 (i32.const 7))             ;; number of executes invoked with no 'proceed' (indicating incomplete inferences) since this frame was created and prior to subsequent frame.
     (global $BkBPred i32 (i32.const 8))         ;; Backtrack program (code contains next clause word location from $BkBP) = STACK[$B + STACK[$B] + $BkBPred]
-    (global $BkSuffixSize i32 (i32.const 8))    ;; Number of slots in the choicepoint frame  following the argument slots.
+    (global $BkB0 i32 (i32.const 9))            ;; cut register.
+    (global $BkSuffixSize i32 (i32.const 9))    ;; Number of slots in the choicepoint frame  following the argument slots.
 
     (global $fail (mut i32) (i32.const 0))
     (global $mode (mut i32) (i32.const 0))
@@ -554,6 +556,17 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
         )
     )
 
+    (func $loadFromChoicepointFrame (param $slot i32) (result i32)
+        (call $loadFromStack
+            (i32.add
+                (global.get $B)
+                (i32.add
+                    (local.get $slot)
+                    (call $loadFromStack (global.get $B)))
+            )
+        )
+    )
+
     (func $backtrack
         (local $old i32)
         (if (i32.or
@@ -561,27 +574,10 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
                 (i32.lt_s (global.get $B) (global.get $minStack)))
             (then (global.set $P (i32.const -1))) ;; terminate run of WAM
             (else
-                (global.set $P
-                     (call $loadFromStack
-                        (i32.add
-                            (global.get $B)
-                            (i32.add
-                                (global.get $BkBP)
-                                (call $loadFromStack (global.get $B)))
-                        )
-                    )
-                )
-                (global.set $PPred
-                     (call $loadFromStack
-                        (i32.add
-                            (global.get $B)
-                            (i32.add
-                                (global.get $BkBPred)
-                                (call $loadFromStack (global.get $B)))
-                        )
-                    )
-                )
+                (global.set $P (call $loadFromChoicepointFrame (global.get $BkBP)) )
+                (global.set $PPred (call $loadFromChoicepointFrame (global.get $BkBPred)) )
                 (call $setCode (global.get $PPred))
+                (global.set $B0 (call $loadFromChoicepointFrame (global.get $BkB0)))
             )
         )
         (local.set $old (call $resetIncompleteInferences)) ;; discard the incomplete inference count for this choicepoint frame or for the 'base'.
@@ -647,6 +643,10 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
         (call $storeToStack
             (i32.add (local.get $lastFrameArg) (global.get $BkI))
             (i32.const 0)
+        )
+        (call $storeToStack
+            (i32.add (local.get $lastFrameArg) (global.get $BkB0))
+            (global.get $B0)
         )
     )
 
@@ -1563,6 +1563,7 @@ return search_bucket(val, subtableStart, subsize)
         )
         (global.set $CP (i32.add (global.get $P) (i32.const 3)))
         (global.set $CPPred (global.get $PPred))
+        (global.set $B0 (global.get $B))
         (call $setCode (local.get $pred))
         (global.set $PPred (local.get $pred))
         (global.set $P (i32.const 0))
@@ -1792,6 +1793,7 @@ return search_bucket(val, subtableStart, subsize)
                 return
             )
         )
+        (global.set $B0 (global.get $B))
         (call $setCode (local.get $pred))
         (global.set $PPred (local.get $pred))
         (global.set $P (i32.const 0))
