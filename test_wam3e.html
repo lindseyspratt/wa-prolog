@@ -1,0 +1,111 @@
+<html lang="">
+<head>
+    <title>Web Assembly Wam Tests</title>
+<script src="build/program/util.e.js"></script>
+<script>
+    let util = require('utilities');
+
+    function create_program_5_18_conc_3() {
+        // conc([], L L).
+        // conc([H|T], L, [H|R]) :- conc(T, L, R).
+
+        util.validate_op_codes();
+
+        return util.process_labels([
+            util.opCodes.switch_on_term, {ref: 'C1a'}, {ref: 'C1'}, {ref: 'C2'}, 0,    // switch_on_term C1a,C1,C2,fail
+
+            {label: 'C1a'},
+            util.opCodes.try_me_else, {ref: 'C2a'},
+
+            {label: 'C1'},
+            util.opCodes.get_constant, util.lookup_atom('[]'), 1,
+            util.opCodes.get_value, 2, 3,
+            util.opCodes.proceed,
+
+            {label: 'C2a'},
+            util.opCodes.trust_me,
+
+            {label: 'C2'},
+            util.opCodes.get_list, 1,
+            util.opCodes.unify_variable, 4,
+            util.opCodes.unify_variable, 1,
+            util.opCodes.get_list, 3,
+            util.opCodes.unify_value, 4,
+            util.opCodes.unify_variable, 3,
+            util.opCodes.execute, util.lookupIndicator('conc', 3)
+
+        ]);
+    }
+
+    function create_query_5_18() {
+        util.validate_op_codes();
+
+        // ?- conc([a],[b],X). -> X=[a,b]
+        return [
+            util.opCodes.allocate,
+            util.opCodes.put_list, 1,                               // put_list A1
+            util.opCodes.set_constant, util.lookup_atom('a'),
+            util.opCodes.set_constant, util.lookup_atom('[]'),
+            util.opCodes.put_list, 2,                               // put_list A2
+            util.opCodes.set_constant, util.lookup_atom('b'),
+            util.opCodes.set_constant, util.lookup_atom('[]'),
+            util.opCodes.put_variable, 0, 4, 3,                     // put_variable Y1,A3
+            util.opCodes.deallocate,
+            util.opCodes.execute, util.lookupIndicator("conc", 3)   // execute conc/3
+        ];
+    }
+
+    function test_query_5_18() {
+
+        fetch('build/wam/language3e.wasm').then(response =>
+            response.arrayBuffer()
+        ).then(bytes =>
+            WebAssembly.instantiate(bytes, util.importObject)
+        ).then(obj => {
+            util.initialize_op_codes(obj);
+
+            console.log('conc/3:' + JSON.stringify(create_program_5_18_conc_3()));
+
+            util.registerProgram(util.lookupIndicator("conc", 3), create_program_5_18_conc_3());
+
+            let info = util.runQuery(1, create_query_5_18(), obj);
+
+            util.display_results('test query5_18', 16, info);
+        });
+    }
+
+</script>
+</head>
+<body>
+<div id="tests">
+    <ul>
+        <li><button onclick="test_query_5_18();">test_query_5_18</button></li>
+    </ul>
+</div>
+<div id="display">
+    <div id="testName">
+
+    </div>
+    <br>
+    <br>
+    <div id="stats">
+
+    </div>
+    <br>
+    <br>
+    <div id="result">
+
+    </div>
+    <br>
+    <br>
+    <div id="resultInterpretationRegisters">
+
+    </div>
+    <br>
+    <br>
+    <div id="resultInterpretationHeap">
+
+    </div>
+</div>
+</body>
+</html>

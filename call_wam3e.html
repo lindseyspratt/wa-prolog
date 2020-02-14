@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>call/1 WAM3d</title>
+</head>
+<body>
+<div id="tests">
+    <ul>
+        <li><button onclick="query();">query</button></li>
+    </ul>
+</div>
+<div id="display">
+    <div id="testName">
+
+    </div>
+    <br>
+    <br>
+    <div id="stats">
+
+    </div>
+    <br>
+    <br>
+    <div id="result">
+
+    </div>
+    <br>
+    <br>
+    <div id="resultInterpretationRegisters">
+
+    </div>
+    <br>
+    <br>
+    <div id="resultInterpretationHeap">
+
+    </div>
+</div>
+
+
+<script src="build/program/call.e.js"></script>
+<script>
+    let call = require('call');
+    let util = require('utilities');
+
+    function query() {
+
+        fetch('build/wam/language3e.wasm').then(response =>
+            response.arrayBuffer()
+        ).then(bytes =>
+            WebAssembly.instantiate(bytes, util.importObject)
+        ).then(res => {
+            util.initialize_op_codes(res);
+
+            console.log('call/1: ' + call.callProgram());
+
+            util.registerProgram(util.lookupIndicator('call', 1), call.callProgram());
+            util.registerProgram(util.lookupIndicator('builtin', 1), call.builtinProgram());
+            util.registerProgram(util.lookupIndicator('extern', 1), call.externProgram());
+
+            console.log('query: ' + call.queryTrue());
+
+            let limit = 1;
+            let info = util.runQuery(limit, call.queryTrue(), res);
+
+            let durationSec = info.duration / 1000;
+            let lips = Math.trunc(info.inferences / durationSec);
+
+            util.display_results('test query true', 64,
+                {lips: lips, repetitions: limit, durationSeconds: durationSec, inferences: info.inferences});
+        });
+    }
+
+</script>
+</body>
+</html>

@@ -13,6 +13,9 @@
     "build-util-c": "../../node_modules/.bin/browserify -r ./utilities.c.wam.js:utilities > ../../build/program/util.c.js",
     "build-nrev-d": "../../node_modules/.bin/browserify -r ./nrev.d.wam.js:nrev -r ./utilities.d.wam.js:utilities > ../../build/program/nrev.d.js",
     "build-util-d": "../../node_modules/.bin/browserify -r ./utilities.d.wam.js:utilities > ../../build/program/util.d.js",
-    "build-call-d": "../../node_modules/.bin/browserify -r ./call.d.wam.js:call -r ./utilities.d.wam.js:utilities > ../../build/program/call.d.js"
+    "build-call-d": "../../node_modules/.bin/browserify -r ./call.d.wam.js:call -r ./utilities.d.wam.js:utilities > ../../build/program/call.d.js",
+    "build-nrev-e": "../../node_modules/.bin/browserify -r ./nrev.e.wam.js:nrev -r ./utilities.e.wam.js:utilities > ../../build/program/nrev.e.js",
+    "build-util-e": "../../node_modules/.bin/browserify -r ./utilities.e.wam.js:utilities > ../../build/program/util.e.js",
+    "build-call-e": "../../node_modules/.bin/browserify -r ./call.e.wam.js:call -r ./utilities.e.wam.js:utilities > ../../build/program/call.e.js"
   }
 }
