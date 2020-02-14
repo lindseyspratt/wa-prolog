@@ -1641,7 +1641,7 @@ return search_bucket(val, subtableStart, subsize)
     )
 
     (func $trust_me
-        (local $arity i32) (local $lastFrameArg i32) (local $backTR i32)
+        (local $arity i32) (local $lastFrameArg i32) (local $newArity i32) (local $newLastFrameArg i32) (local $backTR i32)
         (local.set $arity (call $loadFromStack (global.get $B)))
         (call $storeRegistersFromChoicepoint)
         (local.set $lastFrameArg (i32.add (global.get $B) (local.get $arity)))
@@ -1650,9 +1650,12 @@ return search_bucket(val, subtableStart, subsize)
         (local.set $backTR (call $loadFromStack (i32.add (local.get $lastFrameArg) (global.get $BkTR))))
         (call $unwindTrail (local.get $backTR) (global.get $TR) )
         (global.set $TR (local.get $backTR))
-        (global.set $B (call $loadFromStack (i32.add (local.get $lastFrameArg) (global.get $BkB))))
         (global.set $H (call $loadFromStack (i32.add (local.get $lastFrameArg) (global.get $BkH))))
-        (global.set $HB (global.get $H))
+        (global.set $B (call $loadFromStack (i32.add (local.get $lastFrameArg) (global.get $BkB))))
+        ;; $newArity and $newLastFrameArg are based on correction in wamerratum.
+        (local.set $newArity (call $loadFromStack (global.get $B))) ;; $B was changed by preceding global.set.
+        (local.set $newLastFrameArg (i32.add (global.get $B) (local.get $newArity))) ;; $B was changed by preceding global.set.
+        (global.set $HB (call $loadFromStack (i32.add (local.get $newLastFrameArg) (global.get $BkH))))
     )
 
     (func $put_constant (param $c i32) (param $reg i32)
