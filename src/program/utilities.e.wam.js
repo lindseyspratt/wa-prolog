@@ -76,6 +76,16 @@ let importObject = {js:
             traceDerefZero: traceDerefZero,
             traceStoreTrailToReg: traceStoreTrailToReg,
             traceStore: traceStore,
+            traceInitializeGlobalsB: traceInitializeGlobalsB,
+            traceStoreB: traceStoreB,
+            traceCallB0: traceCallB0,
+            traceTryMeElseB: traceTryMeElseB,
+            traceTrustMeB: traceTrustMeB,
+            traceExecuteB0: traceExecuteB0,
+            traceTryB: traceTryB,
+            traceNeckCutB: traceNeckCutB,
+            traceCutB: traceCutB,
+
             warnMaxStack: warnMaxStack,
             warnMaxTrail: warnMaxTrail,
             warnInvalidMemoryLayout: warnInvalidMemoryLayout,
@@ -314,6 +324,9 @@ function initialize_op_codes(obj) {
     opCodes.switch_on_term = obj.instance.exports.switch_on_term_opcode();
     opCodes.switch_on_constant = obj.instance.exports.switch_on_constant_opcode();
     opCodes.switch_on_structure = obj.instance.exports.switch_on_structure_opcode();
+    opCodes.neck_cut = obj.instance.exports.neck_cut_opcode();
+    opCodes.get_level = obj.instance.exports.get_level_opcode();
+    opCodes.cut = obj.instance.exports.cut_opcode();
 }
 
 function validate_op_codes() {
@@ -595,6 +608,40 @@ function traceStoreTrailToReg() {
 function traceStore(addr, val) {
     console.log ('    store ' + val + ' to ' + addr + '.')
 }
+function traceInitializeGlobalsB(addr) {
+    console.log ('    initializeGlobals B = ' + addr + '.')
+}
+function traceStoreB(newB, bkB) {
+    console.log ('    store oldB ' + bkB + ' in BkB slot of new frame based @ ' + newB + '.')
+}
+function traceCallB0(addr) {
+    console.log ('    call B0 = ' + addr + '.')
+}
+
+function traceTryMeElseB(addr) {
+    console.log ('    tryMeElse B = ' + addr + '.')
+}
+
+function traceTrustMeB(addr) {
+    console.log ('    trustMe B = ' + addr + '.')
+}
+
+function traceExecuteB0(addr) {
+    console.log ('    execute B0 = ' + addr + '.')
+}
+
+function traceTryB(addr) {
+    console.log ('    try B = ' + addr + '.')
+}
+
+function traceNeckCutB(addr) {
+    console.log ('    nextCut B = ' + addr + '.')
+}
+
+function traceCutB(addr) {
+    console.log ('    cut B = ' + addr + '.')
+}
+
 function warnMaxStack(addr, max) {
     console.log('warning: address ' + addr + ' exceeds max stack ' + max + '.');
     alert('warning: address ' + addr + ' exceeds max stack ' + max + '.');

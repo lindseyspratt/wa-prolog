@@ -224,7 +224,7 @@
         This predicate tests set_local_value, showing a case where the
         set_local_value instruction must be the *first* reference to a non-local variable.
 
-        a(􏰉X):- b􏰉(f(􏰉X)).
+        a(X):- b(f(X)).
         */
         return [
             util.opCodes.get_variable, 0, 2, 1,                             // get_variable X2, A1

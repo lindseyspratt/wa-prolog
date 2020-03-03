@@ -70,6 +70,16 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     (import "js" "traceDerefZero" (func $traceDerefZero))
     (import "js" "traceStoreTrailToReg" (func $traceStoreTrailToReg))
     (import "js" "traceStore" (func $traceStore (param i32) (param i32)))
+    (import "js" "traceInitializeGlobalsB" (func $traceInitializeGlobalsB (param i32)))
+    (import "js" "traceStoreB" (func $traceStoreB (param i32) (param i32)))
+    (import "js" "traceCallB0" (func $traceCallB0 (param i32)))
+    (import "js" "traceTryMeElseB" (func $traceTryMeElseB (param i32)))
+    (import "js" "traceTrustMeB" (func $traceTrustMeB (param i32)))
+    (import "js" "traceExecuteB0" (func $traceExecuteB0 (param i32)))
+    (import "js" "traceTryB" (func $traceTryB (param i32)))
+    (import "js" "traceNeckCutB" (func $traceNeckCutB (param i32)))
+    (import "js" "traceCutB" (func $traceCutB (param i32)))
+
     (import "js" "warnMaxStack" (func $warnMaxStack (param i32) (param i32)))
     (import "js" "warnMaxTrail" (func $warnMaxTrail (param i32) (param i32)))
     (import "js" "warnInvalidMemoryLayout"
@@ -592,6 +602,7 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     (func $create_choicepoint_frame (param $newB i32) (param $label i32)
         (local $i i32)
         (local $lastFrameArg i32)
+        (local $storeBkB i32)
         (call $storeToStack (local.get $newB) (global.get $num_of_args))
         (local.set $i (i32.const 1))
         ;; If the $num_of_args == 0 then there are no args to store in
@@ -620,8 +631,10 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
             (i32.add (local.get $lastFrameArg) (global.get $BkCP))
             (global.get $CP)
         )
+        (local.set $storeBkB (i32.add (local.get $lastFrameArg) (global.get $BkB)))
+        (call $traceStoreB (local.get $newB) (global.get $B))
         (call $storeToStack
-            (i32.add (local.get $lastFrameArg) (global.get $BkB))
+            (local.get $storeBkB)
             (global.get $B)
         )
         (call $storeToStack
@@ -801,6 +814,38 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
         )
     )
 
+    (func $tidy_trail
+        (local $backTR i32)
+        (local $trailValue i32)
+        (local.set $backTR (call $loadFromChoicepointFrame (global.get $BkTR)) )
+        (if (i32.lt_u (local.get $backTR) (global.get $TR))
+            (then
+                (block
+                    (loop
+                        (local.set $trailValue (call $loadFromTrail (local.get $backTR)))
+                        (if (i32.or
+                                (i32.lt_u (local.get $trailValue) (global.get $HB))
+                                (i32.and
+                                    (i32.lt_u (global.get $H) (local.get $trailValue))
+                                    (i32.lt_u (local.get $trailValue) (global.get $B))
+                                )
+                            )
+                            (then (local.set $backTR (i32.add (local.get $backTR) (i32.const 1)))) ;; keep this trail item.
+                            (else
+                                ;; remove this trail item by swapping last trail item into the $backTR position,
+                                ;; then loop to evaluate this newly swapped item.
+                                (call $storeToTrail (i32.sub (global.get $TR) (i32.const 1)) (local.get $backTR))
+                                (global.set $TR (i32.sub (global.get $TR) (i32.const 1)))
+                            )
+                        )
+                        (br_if 1 (i32.eq (local.get $backTR) (global.get $TR)))
+                        (br 0)
+                    )
+                )
+            )
+        )
+    )
+
 (;
     // The table is in two layers.
     // The top layer is a sequence of tableSize 'buckets' (tableSize is a power of 2) - each
@@ -892,6 +937,7 @@ return search_bucket(val, subtableStart, subsize)
         (global.set $CP (i32.const 0)) ;; $CP is the Continuation Program instruction counter - to continue after returning from a call.
         (global.set $CPPred (i32.const -1)) ;; $CPPred is the predicate code identifier for the continuation code. This identifier is used to set the host 'code' that is referenced be getCode func.
         (global.set $E (i32.const -1)) ;; $E is the Environment location in the Stack.
+        (call $traceInitializeGlobalsB (i32.const -1))
         (global.set $B (i32.const -1)) ;; $B is the base of the current choicepoint frame - $B can never validly be less than or equal to $minStack, so when the backtrack func tries to 'go to' an address less than or equal to $minStack it terminates the WAM.
         (global.set $HB (i32.const -1))
         (global.set $TR (global.get $minTrail))
@@ -1013,6 +1059,9 @@ return search_bucket(val, subtableStart, subsize)
     (func $switch_on_term_opcode (result i32) (i32.const 33))
     (func $switch_on_constant_opcode (result i32) (i32.const 34))
     (func $switch_on_structure_opcode (result i32) (i32.const 35))
+    (func $neck_cut_opcode (result i32) (i32.const 36))
+    (func $get_level_opcode (result i32) (i32.const 37))
+    (func $cut_opcode (result i32) (i32.const 38))
 
     (func $evalOp (param $op i32)
         (block
@@ -1051,7 +1100,15 @@ return search_bucket(val, subtableStart, subsize)
         (block
         (block
         (block
-            (br_table 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 (local.get $op))
+        (block
+        (block
+        (block
+            (br_table 0 1 2 3 4 5 6 7 8 9 10
+                11 12 13 14 15 16 17 18 19 20
+                21 22 23 24 25 26 27 28 29 30
+                31 32 33 34 35 36 37 38
+                (local.get $op)
+            )
             ) ;; 0
             (call $op0) ;; nop
             return
@@ -1160,6 +1217,15 @@ return search_bucket(val, subtableStart, subsize)
          ) ;; 35
              (call $op35) ;; $switch_on_structure
              return
+         ) ;; 36
+             (call $op36) ;; $neck_cut
+             return
+         ) ;; 37
+             (call $op37) ;; $get_level
+             return
+         ) ;; 38
+             (call $op38) ;; $cut
+             return
  )
 
     (func $traceInst0 (param $inst i32)
@@ -1182,6 +1248,7 @@ return search_bucket(val, subtableStart, subsize)
     (func $traceInstSwitch
         (call $traceInstSwitchLog (global.get $P) (global.get $PPred))
     )
+
     ;; trace: nop
     (func $op0 ;; No operation
         (call $addToP (i32.const 1))
@@ -1420,6 +1487,24 @@ return search_bucket(val, subtableStart, subsize)
         ;; $switch_on_structure sets $P
     )
 
+    (func $op36 ;; neck_cut
+        (call $traceInst0 (i32.const 36))
+        (call $neck_cut )
+        (call $addToP (i32.const 1))
+    )
+
+    (func $op37 ;; get_level
+        (call $traceInst1 (i32.const 37))
+        (call $get_level (call $getCodeArg (i32.const 1)) )
+        (call $addToP (i32.const 2))
+    )
+
+    (func $op38 ;; cut
+        (call $traceInst1 (i32.const 38))
+        (call $cut (call $getCodeArg (i32.const 1)) )
+        (call $addToP (i32.const 3))
+    )
+
     (func $putStructure (param $indicator i32) (param $reg i32)
         ;;call $storeStructureAtHeapTop ;; simplified out according to section 5.1.
 
@@ -1563,6 +1648,7 @@ return search_bucket(val, subtableStart, subsize)
         )
         (global.set $CP (i32.add (global.get $P) (i32.const 3)))
         (global.set $CPPred (global.get $PPred))
+        (call $traceCallB0 (global.get $B))
         (global.set $B0 (global.get $B))
         (call $setCode (local.get $pred))
         (global.set $PPred (local.get $pred))
@@ -1617,6 +1703,7 @@ return search_bucket(val, subtableStart, subsize)
         (local $newB i32)
         (local.set $newB (call $nextStackFrameSlot))
         (call $create_choicepoint_frame (local.get $newB) (local.get $label))
+        (call $traceTryMeElseB (local.get $newB))
         (global.set $B (local.get $newB))
         (global.set $HB (global.get $H))
     )
@@ -1643,6 +1730,7 @@ return search_bucket(val, subtableStart, subsize)
 
     (func $trust_me
         (local $arity i32) (local $lastFrameArg i32) (local $newArity i32) (local $newLastFrameArg i32) (local $backTR i32)
+        (local $loadBkB i32)
         (local.set $arity (call $loadFromStack (global.get $B)))
         (call $storeRegistersFromChoicepoint)
         (local.set $lastFrameArg (i32.add (global.get $B) (local.get $arity)))
@@ -1652,11 +1740,18 @@ return search_bucket(val, subtableStart, subsize)
         (call $unwindTrail (local.get $backTR) (global.get $TR) )
         (global.set $TR (local.get $backTR))
         (global.set $H (call $loadFromStack (i32.add (local.get $lastFrameArg) (global.get $BkH))))
-        (global.set $B (call $loadFromStack (i32.add (local.get $lastFrameArg) (global.get $BkB))))
-        ;; $newArity and $newLastFrameArg are based on correction in wamerratum.
-        (local.set $newArity (call $loadFromStack (global.get $B))) ;; $B was changed by preceding global.set.
-        (local.set $newLastFrameArg (i32.add (global.get $B) (local.get $newArity))) ;; $B was changed by preceding global.set.
-        (global.set $HB (call $loadFromStack (i32.add (local.get $newLastFrameArg) (global.get $BkH))))
+        (local.set $loadBkB (call $loadFromStack (i32.add (local.get $lastFrameArg) (global.get $BkB))))
+        (call $traceTrustMeB (local.get $loadBkB))
+        (global.set $B (local.get $loadBkB))
+        (if (i32.eq (global.get $B) (i32.const -1))
+            (then (global.set $HB (i32.const -1)))
+            (else
+                ;; $newArity and $newLastFrameArg are based on correction in wamerratum.
+                (local.set $newArity (call $loadFromStack (global.get $B))) ;; $B was changed by preceding global.set.
+                (local.set $newLastFrameArg (i32.add (global.get $B) (local.get $newArity))) ;; $B was changed by preceding global.set.
+                (global.set $HB (call $loadFromStack (i32.add (local.get $newLastFrameArg) (global.get $BkH))))
+            )
+        )
     )
 
     (func $put_constant (param $c i32) (param $reg i32)
@@ -1793,6 +1888,7 @@ return search_bucket(val, subtableStart, subsize)
                 return
             )
         )
+        (call $traceExecuteB0 (global.get $B))
         (global.set $B0 (global.get $B))
         (call $setCode (local.get $pred))
         (global.set $PPred (local.get $pred))
@@ -1863,6 +1959,7 @@ return search_bucket(val, subtableStart, subsize)
         (local $newB i32)
         (local.set $newB (call $nextStackFrameSlot))
         (call $create_choicepoint_frame (local.get $newB) (i32.add (global.get $P) (i32.const 2)))
+        (call $traceTryB (local.get $newB))
         (global.set $B (local.get $newB))
         (global.set $HB (global.get $H))
         (global.set $P (local.get $label))
@@ -1947,6 +2044,31 @@ return search_bucket(val, subtableStart, subsize)
         )
     )
 
+    (func $neck_cut
+        (if (i32.gt_u (global.get $B) (global.get $B0))
+            (then
+                (call $traceNeckCutB (global.get $B0))
+                (global.set $B (global.get $B0))
+                (call $tidy_trail)
+            )
+        )
+    )
+
+    (func $get_level (param $Yn i32)
+        (call $storeAddressToAddress (call $stackRegisterAddress (local.get $Yn)) (global.get $B0))
+    )
+
+    (func $cut (param $Yn i32)
+        (local $cutB i32)
+        (local.set $cutB (call $loadFromStack (call $stackRegisterAddress (local.get $Yn))))
+        (if (i32.gt_u (global.get $B) (local.get $cutB))
+            (then
+                (call $traceCutB (local.get $cutB))
+                (global.set $B (local.get $cutB))
+                (call $tidy_trail)
+            )
+        )
+    )
     (export "setH" (func $setH))
     (export "shiftTag" (func $shiftTag))
     (export "tagStructure" (func $tagStructure))
@@ -1991,6 +2113,9 @@ return search_bucket(val, subtableStart, subsize)
     (export "switch_on_term_opcode" (func $switch_on_term_opcode))
     (export "switch_on_constant_opcode" (func $switch_on_constant_opcode))
     (export "switch_on_structure_opcode" (func $switch_on_structure_opcode))
+    (export "neck_cut_opcode" (func $neck_cut_opcode))
+    (export "get_level_opcode" (func $get_level_opcode))
+    (export "cut_opcode" (func $cut_opcode))
 
     (export "run" (func $run))
 )

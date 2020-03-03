@@ -5,57 +5,75 @@
 <script>
     let util = require('utilities');
 
-    function create_program_5_18_conc_3() {
-        // conc([], L L).
-        // conc([H|T], L, [H|R]) :- conc(T, L, R).
+    // f(a) :- !.
+    // f(b).
+
+    function create_program_5_cut_f_1() {
+
+        util.validate_op_codes();
+
+        return util.process_labels(util.expand_hash([
+            util.opCodes.switch_on_term, {ref: 'S11'}, {ref: 'S1b'}, 0, 0,
+            util.opCodes.switch_on_constant, 2,
+                {hash: [util.lookup_atom('a'), {ref: 'S1a'}, util.lookup_atom('b'), {ref: 'S1b'}]},
+            {label: 'S11'},
+            util.opCodes.try_me_else, {ref: 'S12'},
+            {label: 'S1a'},
+            util.opCodes.get_constant, util.lookup_atom('a'), 1,
+            util.opCodes.neck_cut,
+            util.opCodes.proceed,
+            {label: 'S12'},
+            util.opCodes.trust_me,
+            {label: 'S1b'},
+            util.opCodes.get_constant, util.lookup_atom('b'), 1,
+            util.opCodes.proceed
+            ]));
+    }
+    //  g(X) :- f(X), =(X, b).
+    //  g(c).
+
+    function create_program_5_cut_g_1() {
 
         util.validate_op_codes();
 
         return util.process_labels([
-            util.opCodes.switch_on_term, {ref: 'C1a'}, {ref: 'C1'}, {ref: 'C2'}, 0,    // switch_on_term C1a,C1,C2,fail
-
-            {label: 'C1a'},
-            util.opCodes.try_me_else, {ref: 'C2a'},
-
-            {label: 'C1'},
-            util.opCodes.get_constant, util.lookup_atom('[]'), 1,
-            util.opCodes.get_value, 2, 3,
-            util.opCodes.proceed,
-
-            {label: 'C2a'},
+            util.opCodes.try_me_else, {ref: 'S12'},
+            util.opCodes.allocate,
+            util.opCodes.get_variable, 1, 1, 1,
+            util.opCodes.call, util.lookupIndicator('f', 1), 1,
+            util.opCodes.put_value, 1, 1, 1,
+            util.opCodes.put_constant, util.lookup_atom('b'), 2,
+            util.opCodes.deallocate,
+            util.opCodes.execute, util.lookupIndicator('=',2),
+            {label: 'S12'},
             util.opCodes.trust_me,
-
-            {label: 'C2'},
-            util.opCodes.get_list, 1,
-            util.opCodes.unify_variable, 4,
-            util.opCodes.unify_variable, 1,
-            util.opCodes.get_list, 3,
-            util.opCodes.unify_value, 4,
-            util.opCodes.unify_variable, 3,
-            util.opCodes.execute, util.lookupIndicator('conc', 3)
-
+            util.opCodes.get_constant, util.lookup_atom('c'), 1,
+            util.opCodes.proceed
         ]);
     }
 
-    function create_query_5_18() {
+    //  =(X, X).
+    function create_program_5_cut_eq_2() {
+
         util.validate_op_codes();
 
-        // ?- conc([a],[b],X). -> X=[a,b]
+        return util.process_labels([
+            util.opCodes.get_value, 1, 2,
+            util.opCodes.proceed
+        ]);
+    }
+
+    function create_query_5_cut() {
+        util.validate_op_codes();
+
+        // ?- g(X). X -> c.
         return [
-            util.opCodes.allocate,
-            util.opCodes.put_list, 1,                               // put_list A1
-            util.opCodes.set_constant, util.lookup_atom('a'),
-            util.opCodes.set_constant, util.lookup_atom('[]'),
-            util.opCodes.put_list, 2,                               // put_list A2
-            util.opCodes.set_constant, util.lookup_atom('b'),
-            util.opCodes.set_constant, util.lookup_atom('[]'),
-            util.opCodes.put_variable, 0, 4, 3,                     // put_variable Y1,A3
-            util.opCodes.deallocate,
-            util.opCodes.execute, util.lookupIndicator("conc", 3)   // execute conc/3
+            util.opCodes.put_variable, 0, 1, 1,                     // put_variable X1,A1
+            util.opCodes.execute, util.lookupIndicator("g", 1)   // execute g/1
         ];
     }
 
-    function test_query_5_18() {
+    function test_query_5_cut() {
 
         fetch('build/wam/language3e.wasm').then(response =>
             response.arrayBuffer()
@@ -64,13 +82,64 @@
         ).then(obj => {
             util.initialize_op_codes(obj);
 
-            console.log('conc/3:' + JSON.stringify(create_program_5_18_conc_3()));
+            util.registerProgram(util.lookupIndicator("f", 1), create_program_5_cut_f_1());
+            util.registerProgram(util.lookupIndicator("g", 1), create_program_5_cut_g_1());
+            util.registerProgram(util.lookupIndicator("=", 2), create_program_5_cut_eq_2());
 
-            util.registerProgram(util.lookupIndicator("conc", 3), create_program_5_18_conc_3());
+            let info = util.runQuery(1, create_query_5_cut(), obj);
 
-            let info = util.runQuery(1, create_query_5_18(), obj);
+            util.display_results('test query5_cut', 16, info);
+        });
+    }
 
-            util.display_results('test query5_18', 16, info);
+    // h(a).
+    // h(b).
+
+    function create_program_5_h_1() {
+
+        util.validate_op_codes();
+
+        return util.process_labels(util.expand_hash([
+            util.opCodes.switch_on_term, {ref: 'S11'}, {ref: 'S1b'}, 0, 0,
+            util.opCodes.switch_on_constant, 2,
+            {hash: [util.lookup_atom('a'), {ref: 'S1a'}, util.lookup_atom('b'), {ref: 'S1b'}]},
+            {label: 'S11'},
+            util.opCodes.try_me_else, {ref: 'S12'},
+            {label: 'S1a'},
+            util.opCodes.get_constant, util.lookup_atom('a'), 1,
+            util.opCodes.proceed,
+            {label: 'S12'},
+            util.opCodes.trust_me,
+            {label: 'S1b'},
+            util.opCodes.get_constant, util.lookup_atom('b'), 1,
+            util.opCodes.proceed
+        ]));
+    }
+
+    function create_query_5_h() {
+        util.validate_op_codes();
+
+        // ?- h(X). X -> a.
+        return [
+            util.opCodes.put_variable, 0, 1, 1,                     // put_variable X1,A1
+            util.opCodes.execute, util.lookupIndicator("h", 1)   // execute h/1
+        ];
+    }
+
+    function test_query_5_h() {
+
+        fetch('build/wam/language3e.wasm').then(response =>
+            response.arrayBuffer()
+        ).then(bytes =>
+            WebAssembly.instantiate(bytes, util.importObject)
+        ).then(obj => {
+            util.initialize_op_codes(obj);
+
+            util.registerProgram(util.lookupIndicator("h", 1), create_program_5_h_1());
+
+            let info = util.runQuery(1, create_query_5_h(), obj);
+
+            util.display_results('test query5_h', 16, info);
         });
     }
 
@@ -79,7 +148,8 @@
 <body>
 <div id="tests">
     <ul>
-        <li><button onclick="test_query_5_18();">test_query_5_18</button></li>
+        <li><button onclick="test_query_5_cut();">test_query_5_cut</button></li>
+        <li><button onclick="test_query_5_h();">test_query_5_h</button></li>
     </ul>
 </div>
 <div id="display">
