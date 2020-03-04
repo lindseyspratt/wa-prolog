@@ -1,7 +1,7 @@
 <html lang="">
 <head>
     <title>Web Assembly Wam Tests</title>
-<script src="build/program/util.c.js"></script>
+<script src="../../build/tutorial/program/util.c.js"></script>
 <script>
     let util = require('utilities');
 
@@ -116,7 +116,7 @@
 
     function test_query_5_10() {
 
-        fetch('build/wam/language3c.wasm').then(response =>
+        fetch('../../build/tutorial/wam/language3c.wasm').then(response =>
             response.arrayBuffer()
         ).then(bytes =>
             WebAssembly.instantiate(bytes, util.importObject)
@@ -198,7 +198,7 @@
 
     function test_query_5_unsafe() {
 
-        fetch('build/wam/language3c.wasm').then(response =>
+        fetch('../../build/tutorial/wam/language3c.wasm').then(response =>
             response.arrayBuffer()
         ).then(bytes =>
             WebAssembly.instantiate(bytes, util.importObject)
@@ -277,7 +277,7 @@
 
     function test_query_5_local() {
 
-        fetch('build/wam/language3c.wasm').then(response =>
+        fetch('../../build/tutorial/wam/language3c.wasm').then(response =>
             response.arrayBuffer()
         ).then(bytes =>
             WebAssembly.instantiate(bytes, util.importObject)

@@ -7,11 +7,15 @@
     let atable = [];
     let code = [];
     let indicators = [];
+    let programs = [];
 
     const MAX_REGISTER = 256;
     const PDL_START = (MAX_REGISTER+1) * 4;
     const MAX_PDL = 256;
-    const MIN_HEAP = MAX_REGISTER + MAX_PDL + 1;
+    const MIN_STACK = MAX_REGISTER + MAX_PDL + 1;
+    const STACK_START = (MIN_STACK*4);
+    const MAX_STACK = 128;
+    const MIN_HEAP = MAX_REGISTER + MAX_PDL + MAX_STACK + 1;
     const HEAP_START = (MIN_HEAP*4);
 
     let importObject = {js:
@@ -20,15 +24,14 @@
                 maxRegister: MAX_REGISTER,
                 pdlStart: PDL_START,
                 maxPDL: MAX_PDL,
+                minStack: MIN_STACK,
+                stackStart: STACK_START,
                 minHeap: MIN_HEAP,
                 heapStart: HEAP_START,
             lookupAtom: lookupAtomWA,
             getCode: getCodeWA,
-            getIndicatorArity: getIndicatorArityWA,
-            'indicator_a/0':lookupIndicator("a", 0),
-            'indicator_f/1':lookupIndicator("f", 1),
-            'indicator_h/2':lookupIndicator("h", 2),
-            'indicator_p/3':lookupIndicator("p", 3)}};
+            setCode: setCodeWA,
+            getIndicatorArity: getIndicatorArityWA}};
 
     function lookupAtomWA(start, length){
         var bytes = new Uint8Array(memory.buffer, start, length);
@@ -38,6 +41,10 @@
 
     function getCodeWA(codeOfst) {
         return code[codeOfst];
+    }
+
+    function setCodeWA(codeOfst) {
+        code = programs[codeOfst];
     }
 
     function getIndicatorArityWA(indicator) {
@@ -68,60 +75,160 @@
         for (i = 0; i < indicators.length; i++) {
             if (indicators[i][0] === nameID
                 && indicators[i][1] === arity) {
+                console.log(name + '/' + arity + ' found ' + i);
                 return i;
             }
         }
         i = indicators.length;
         indicators[i] = [nameID, arity];
+        console.log(name + '/' + arity + ' created ' + i);
         return i;
     }
-    function test_query_2_9() {
-        fetch('build/wam/language1.wasm').then(response =>
-            response.arrayBuffer()
-        ).then(bytes =>
-            WebAssembly.instantiate(bytes, importObject)
-        ).then(obj => {
-            let i32Initial = new Uint32Array(memory.buffer);
-            for(let i = 0; i < MIN_HEAP + 100;i++) {
-                i32Initial[i] = 0;
-            }
-            obj.instance.exports.query2_9();
-            let i32 = new Uint32Array(memory.buffer);
 
-            display_results('query2_9', i32, MIN_HEAP, 24);
-        });
-    }
-    function test_query_2_9_call_2_10() {
-        fetch('build/wam/language1.wasm').then(response =>
-            response.arrayBuffer()
-        ).then(bytes =>
-            WebAssembly.instantiate(bytes, importObject)
-        ).then(obj => {
-            let i32Initial = new Uint32Array(memory.buffer);
-            for(let i = 0; i < MIN_HEAP + 100;i++) {
-                i32Initial[i] = 0;
-            }
-            obj.instance.exports.query2_9call2_10();
-            let i32 = new Uint32Array(memory.buffer);
+    let opCodes;
 
-            display_results('query2_9call2_10', i32, MIN_HEAP, 24);
-        });
+    function initialize_op_codes(obj) {
+        opCodes = {};
+        opCodes.nop = obj.instance.exports.nop_opcode();
+        opCodes.put_structure = obj.instance.exports.put_structure_opcode();
+        opCodes.get_structure = obj.instance.exports.get_structure_opcode();
+        opCodes.set_variable = obj.instance.exports.set_variable_opcode();
+        opCodes.put_variable = obj.instance.exports.put_variable_opcode();
+        opCodes.get_variable = obj.instance.exports.get_variable_opcode();
+        opCodes.set_value = obj.instance.exports.set_value_opcode();
+        opCodes.put_value = obj.instance.exports.put_value_opcode();
+        opCodes.get_value = obj.instance.exports.get_value_opcode();
+        opCodes.unify_variable = obj.instance.exports.unify_variable_opcode();
+        opCodes.unify_value = obj.instance.exports.unify_value_opcode();
+        opCodes.call = obj.instance.exports.call_opcode();
+        opCodes.proceed = obj.instance.exports.proceed_opcode();
+        opCodes.allocate = obj.instance.exports.allocate_opcode();
+        opCodes.deallocate = obj.instance.exports.deallocate_opcode();
     }
 
-    function test_program_2_10() {
-        fetch('build/wam/language1.wasm').then(response =>
+    function create_program_3_1_p_2() {
+        // p(X, Y) :- q(X,Z), r(Z,Y).
+        return [
+            opCodes.allocate, 2, // allocate 2
+            opCodes.get_variable, 0, 3, 1, // get_variable X3, A1
+            opCodes.get_variable, 1, 1, 2, // get_variable Y1, A2
+            opCodes.put_value, 0, 3, 1, // put_value X3, A1
+            opCodes.put_variable, 1, 2, 2, // put_variable Y2, A2
+            opCodes.call, lookupIndicator("q", 2), // call q/2
+            opCodes.put_value, 1, 2, 1, // put_value Y2, A1
+            opCodes.put_value, 1, 1, 2, // put_value Y1, A2
+            opCodes.call, lookupIndicator("r", 2), // call r/2
+            opCodes.deallocate // deallocate
+        ];
+    }
+
+    /*
+    ?- p(U,V).
+
+X3,A1 = U
+X4,A2 = V
+
+put_variable X3,A1
+put_variable X4,A2
+call p/2
+    */
+    function create_query_3_1() {
+        // ?- p(X,Y).
+        return [
+            opCodes.put_variable, 0, 3, 1, // put_variable X3,A1
+            opCodes.put_variable, 0, 4, 2, // put_variable X4,A2
+            opCodes.call, lookupIndicator("p", 2) // call p/2
+        ];
+    }
+
+    /*
+q(a, b).
+
+X1 = a
+X2 = b
+
+get_structure a/0, A1
+get_structure b/0, A2
+proceed
+     */
+
+    function create_program_3_1_q_2 () {
+        // q(a, b)
+        return [
+            opCodes.get_structure, lookupIndicator("a", 0), 1, // get_structure a/0, A1
+            opCodes.get_structure, lookupIndicator("b", 0), 2, // get_structure b/0, A2
+            opCodes.proceed // proceed
+        ];
+    }
+
+    /*
+    r(b, c).
+
+X1 = b
+X2 = c
+
+get_structure b/0, A1
+get_structure c/0, A2
+proceed
+     */
+    function create_program_3_1_r_2 () {
+        // r(b, c)
+        return [
+            opCodes.get_structure, lookupIndicator("b", 0), 1, // get_structure b/0, A1
+            opCodes.get_structure, lookupIndicator("c", 0), 2, // get_structure c/0, A2
+            opCodes.proceed // proceed
+        ];
+    }
+    // function test_program_3_1() {
+    //
+    //     fetch('../../build/tutorial/wam/language2.wasm').then(response =>
+    //         response.arrayBuffer()
+    //     ).then(bytes =>
+    //         WebAssembly.instantiate(bytes, importObject)
+    //     ).then(obj => {
+    //         initialize_op_codes(obj);
+    //         programs = [];
+    //         programs[lookupIndicator("p", 2)] = create_program_3_1_p_2();
+    //         programs[lookupIndicator("q", 2)] = create_program_3_1_q_2();
+    //         programs[lookupIndicator("r", 2)] = create_program_3_1_r_2();
+    //
+    //         code = programs[lookupIndicator("p", 2)];
+    //         let i32Initial = new Uint32Array(memory.buffer);
+    //         for(let i = 0; i < MIN_HEAP + 100;i++) {
+    //             i32Initial[i] = 0;
+    //         }
+    //
+    //         obj.instance.exports.run();
+    //         let i32 = new Uint32Array(memory.buffer);
+    //
+    //         display_results('test program3_1', i32, MIN_HEAP, 16);
+    //     });
+    // }
+    function test_query_3_1() {
+
+        fetch('../../build/tutorial/wam/language2.wasm').then(response =>
             response.arrayBuffer()
         ).then(bytes =>
             WebAssembly.instantiate(bytes, importObject)
         ).then(obj => {
+            initialize_op_codes(obj);
+
+            programs = [];
+            programs[lookupIndicator("p", 2)] = create_program_3_1_p_2();
+            programs[lookupIndicator("q", 2)] = create_program_3_1_q_2();
+            programs[lookupIndicator("r", 2)] = create_program_3_1_r_2();
+
+
+            code = create_query_3_1();
             let i32Initial = new Uint32Array(memory.buffer);
             for(let i = 0; i < MIN_HEAP + 100;i++) {
                 i32Initial[i] = 0;
             }
-            obj.instance.exports.test_program2_10();
+
+            obj.instance.exports.run(0);
             let i32 = new Uint32Array(memory.buffer);
 
-            display_results('test program2_10', i32, MIN_HEAP, 16);
+            display_results('test program3_1', i32, MIN_HEAP, 16);
         });
     }
     function display_results(test, results, startingWord, length) {
@@ -231,9 +338,7 @@
 <body>
 <div id="tests">
     <ul>
-        <li><button onclick="test_query_2_9();">test_query_2_9</button></li>
-        <li><button onclick="test_query_2_9_call_2_10();">test_query_2_9_call_2_10</button></li>
-        <li><button onclick="test_program_2_10();">test_program_2_4</button></li>
+        <li><button onclick="test_query_3_1();">test_query_3_1</button></li>
     </ul>
 </div>
 <div id="display">

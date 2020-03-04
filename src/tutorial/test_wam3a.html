@@ -1,7 +1,7 @@
 <html lang="">
 <head>
     <title>Web Assembly Wam Tests</title>
-<script src="build/program/util.a.js"></script>
+<script src="../../build/tutorial/program/util.a.js"></script>
 <script>
     let util = require('utilities');
 
@@ -44,7 +44,7 @@
 
     function test_query_4_4_a() {
 
-        fetch('build/wam/language3a.wasm').then(response =>
+        fetch('../../build/tutorial/wam/language3a.wasm').then(response =>
             response.arrayBuffer()
         ).then(bytes =>
             WebAssembly.instantiate(bytes, util.importObject)
@@ -95,7 +95,7 @@
 
     function test_query_5_4() {
 
-        fetch('build/wam/language3a.wasm').then(response =>
+        fetch('../../build/tutorial/wam/language3a.wasm').then(response =>
             response.arrayBuffer()
         ).then(bytes =>
             WebAssembly.instantiate(bytes, util.importObject)
@@ -132,7 +132,7 @@
 
     function test_query_5_7() {
 
-        fetch('build/wam/language3a.wasm').then(response =>
+        fetch('../../build/tutorial/wam/language3a.wasm').then(response =>
             response.arrayBuffer()
         ).then(bytes =>
             WebAssembly.instantiate(bytes, util.importObject)
@@ -164,11 +164,6 @@
     <br>
     <br>
     <div id="stats">
-
-    </div>
-    <br>
-    <br>
-    <div id="result">
 
     </div>
     <br>

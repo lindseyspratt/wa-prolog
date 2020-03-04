@@ -40,14 +40,14 @@
 </div>
 
 
-<script src="build/program/nrev.b.js"></script>
+<script src="../../build/tutorial/program/nrev.b.js"></script>
 <script>
     let nrev = require('nrev');
     let util = require('utilities');
 
     function query() {
 
-        fetch('build/wam/language3b.wasm').then(response =>
+        fetch('../../build/tutorial/wam/language3b.wasm').then(response =>
             response.arrayBuffer()
         ).then(bytes =>
             WebAssembly.instantiate(bytes, util.importObject)

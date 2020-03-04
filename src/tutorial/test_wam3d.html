@@ -1,7 +1,7 @@
 <html lang="">
 <head>
     <title>Web Assembly Wam Tests</title>
-<script src="build/program/util.d.js"></script>
+<script src="../../build/tutorial/program/util.d.js"></script>
 <script>
     let util = require('utilities');
 
@@ -57,7 +57,7 @@
 
     function test_query_5_18() {
 
-        fetch('build/wam/language3d.wasm').then(response =>
+        fetch('../../build/tutorial/wam/language3d.wasm').then(response =>
             response.arrayBuffer()
         ).then(bytes =>
             WebAssembly.instantiate(bytes, util.importObject)

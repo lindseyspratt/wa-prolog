@@ -4,7 +4,7 @@
 <script>
     function test_add_call() {
         let importObject;
-        fetch('build/test/test_add_call.wasm').then(response =>
+        fetch('../../build/tutorial/test/test_add_call.wasm').then(response =>
             response.arrayBuffer()
         ).then(bytes =>
             WebAssembly.instantiate(bytes, importObject)
@@ -24,7 +24,7 @@
             }
         };
 
-        fetch('build/test/test_import.wasm').then(response =>
+        fetch('../../build/tutorial/test/test_import.wasm').then(response =>
             response.arrayBuffer()
         ).then(bytes =>
             WebAssembly.instantiate(bytes, importObject)
@@ -48,7 +48,7 @@
                 }}
         };
 
-        fetch('build/test/test_import_result.wasm').then(response =>
+        fetch('../../build/tutorial/test/test_import_result.wasm').then(response =>
             response.arrayBuffer()
         ).then(bytes =>
             WebAssembly.instantiate(bytes, importObject)
@@ -69,7 +69,7 @@
 
         let importObject = { console: { log: consoleLogString }, js: { mem: memory } };
 
-        fetch('build/test/test_memory.wasm').then(response =>
+        fetch('../../build/tutorial/test/test_memory.wasm').then(response =>
             response.arrayBuffer()
         ).then(bytes =>
             WebAssembly.instantiate(bytes, importObject)
@@ -87,12 +87,12 @@
         };
 
         Promise.all([
-            fetch('build/test/test_shared0.wasm').then(response =>
+            fetch('../../build/tutorial/test/test_shared0.wasm').then(response =>
                 response.arrayBuffer()
             ).then(bytes =>
                 WebAssembly.instantiate(bytes, importObject)
             ),
-            fetch('build/test/test_shared1.wasm').then(response =>
+            fetch('../../build/tutorial/test/test_shared1.wasm').then(response =>
                 response.arrayBuffer()
             ).then(bytes =>
                 WebAssembly.instantiate(bytes, importObject)
@@ -104,7 +104,7 @@
 
     function test_table() {
         let importObject;
-        fetch('build/test/test_table.wasm').then(response =>
+        fetch('../../build/tutorial/test/test_table.wasm').then(response =>
             response.arrayBuffer()
         ).then(bytes =>
             WebAssembly.instantiate(bytes, importObject)

@@ -5,7 +5,7 @@
     <meta name="viewport"
           content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>call/1 WAM3d</title>
+    <title>call/1 WAM3e</title>
 </head>
 <body>
 <div id="tests">
@@ -40,14 +40,14 @@
 </div>
 
 
-<script src="build/program/call.d.js"></script>
+<script src="../../build/tutorial/program/call.e.js"></script>
 <script>
     let call = require('call');
     let util = require('utilities');
 
     function query() {
 
-        fetch('build/wam/language3d.wasm').then(response =>
+        fetch('../../build/tutorial/wam/language3e.wasm').then(response =>
             response.arrayBuffer()
         ).then(bytes =>
             WebAssembly.instantiate(bytes, util.importObject)
