@@ -38,3 +38,6 @@ are test_wamN.html with the same variations for as above for N:
 There are tests for running nrev/1, nrev_wamX.html where X is 3a through 3e.
 Also  there are tests for running the tutorial 'call/1' example: 
 call_wam3d.html and call_wam3e.html.
+
+There is a collection of tests to investigate WebAssembly in src/tutorial/test.
+These are evaluated by src/tutorial/test_tutorial.html.

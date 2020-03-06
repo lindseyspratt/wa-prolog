@@ -1,0 +1,10 @@
+{
+  "name": "wa-prolog",
+  "version": "1.0.0",
+  "dependencies": {
+    "browserify": "14.5.0"
+  },
+  "scripts": {
+    "build-util": "../../node_modules/.bin/browserify -r ./utilities.wam.js:utilities > ../../build/engine/util.js"
+  }
+}
