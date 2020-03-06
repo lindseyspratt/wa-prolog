@@ -572,7 +572,7 @@ function interpret_memory_item(results, itemOfst) {
             }
 
             let next;
-            if(get_tag(listOrTail) === TAG_CON && lookup_atom('[]') === get_val(listOrTail)) {
+            if(get_tag(listOrTail) === TAG_ATM && lookup_atom('[]') === get_val(listOrTail)) {
                 result = '[' + items + ']';
                 if(tailOfst === finalListOfst+1) {
                     next = tailOfst + 1;

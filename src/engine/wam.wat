@@ -1481,7 +1481,7 @@ return search_bucket(val, subtableStart, subsize)
     )
 
     (func $op41 ;; get_integer
-        (call $traceInst2 (i32.const 19))
+        (call $traceInst2 (i32.const 41))
         (call $get_integer (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
         (if (global.get $fail)
             (then (call $backtrack))
@@ -1490,7 +1490,7 @@ return search_bucket(val, subtableStart, subsize)
     )
 
     (func $op42 ;; get_float
-        (call $traceInst2 (i32.const 19))
+        (call $traceInst2 (i32.const 42))
         (call $get_float (call $getCodeArg (i32.const 1)) (call $getCodeArg (i32.const 2)))
         (if (global.get $fail)
             (then (call $backtrack))
@@ -1505,13 +1505,13 @@ return search_bucket(val, subtableStart, subsize)
     )
 
     (func $op43 ;; set_integer
-        (call $traceInst1 (i32.const 20))
+        (call $traceInst1 (i32.const 43))
         (call $set_integer (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
 
     (func $op44 ;; set_float
-        (call $traceInst1 (i32.const 20))
+        (call $traceInst1 (i32.const 44))
         (call $set_float (call $getCodeArg (i32.const 1)))
         (call $addToP (i32.const 2))
     )
@@ -1526,7 +1526,7 @@ return search_bucket(val, subtableStart, subsize)
     )
 
     (func $op45 ;; unify_integer
-        (call $traceInst1 (i32.const 21))
+        (call $traceInst1 (i32.const 45))
         (call $unify_integer (call $getCodeArg (i32.const 1)))
         (if (global.get $fail)
             (then (call $backtrack))
@@ -1535,7 +1535,7 @@ return search_bucket(val, subtableStart, subsize)
     )
 
     (func $op46 ;; unify_float
-        (call $traceInst1 (i32.const 21))
+        (call $traceInst1 (i32.const 46))
         (call $unify_float (call $getCodeArg (i32.const 1)))
         (if (global.get $fail)
             (then (call $backtrack))

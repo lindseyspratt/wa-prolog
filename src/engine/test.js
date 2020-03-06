@@ -41,6 +41,52 @@ function create_ops() {
         [util.opCodes.put_atom, util.lookup_atom("a"), 1],                    // put_atom 'a',1
         [util.opCodes.put_integer, 1, 1],                                           // put_integer 1,1
         [util.opCodes.put_float, util.lookup_float(1.2), 1],                  // put_float 1.2,1
+        {seq:[util.opCodes.set_variable, 1,
+                util.opCodes.get_atom, util.lookup_atom('a'), 1]},            // get_atom 'a',1
+        {seq:[util.opCodes.set_variable, 1,
+                util.opCodes.get_integer,5, 1]},                                    // get_integer 5,1
+        {seq:[util.opCodes.set_variable, 1,
+                util.opCodes.get_float, util.lookup_float(1.2), 1]},          // get_float 1.2,1
+        [util.opCodes.set_atom, util.lookup_atom("a")],                       // set_atom 'a'
+        [util.opCodes.set_integer, 1],                                              // set_integer 1
+        [util.opCodes.set_float, util.lookup_float(1.2)],                     // set_float 1.2
+        {seq:[util.opCodes.set_variable, 1,
+              util.opCodes.get_structure, util.lookupIndicator("f", 1), 1,
+                util.opCodes.unify_atom, util.lookup_atom('a')]},            // unify_atom 'a',1
+        {seq:[util.opCodes.set_variable, 1,
+                util.opCodes.get_structure, util.lookupIndicator("f", 1), 1,
+                util.opCodes.unify_integer,5]},                                    // unify_integer 5,1
+        {seq:[util.opCodes.set_variable, 1,
+                util.opCodes.get_structure, util.lookupIndicator("f", 1), 1,
+                util.opCodes.unify_float, util.lookup_float(1.2)]},          // unify_float 1.2,1
+        [util.opCodes.put_list, 1],                                                 // put_list 1
+        {seq:[util.opCodes.set_variable, 1,
+                util.opCodes.get_list, 1]},                                         // get_list 1
+        [util.opCodes.set_void, 3],                                                 // set_void 3; set voids (anonymous variables) in top three heap slots.
+        {seq:[util.opCodes.set_variable, 1,
+                util.opCodes.get_structure, util.lookupIndicator("f", 1), 1,
+                util.opCodes.unify_void,1]},                                        // unify_void 1
+        [util.opCodes.execute, util.lookupIndicator("p", 1)],           // execute p/1
+        {seq: [util.opCodes.put_atom, util.lookup_atom("a"), 1,
+                util.opCodes.get_variable, 1, 2, 1,
+                util.opCodes.put_unsafe_value, 2, 3]},                              // put_unsafe_value Y1,A1
+        {seq: [util.opCodes.put_atom, util.lookup_atom("a"), 1,
+                util.opCodes.get_variable, 1, 2, 1,
+                util.opCodes.set_local_value, 1, 2]},                              // set_local_value Y2
+        {seq:[util.opCodes.put_atom, util.lookup_atom("a"), 1,
+                util.opCodes.get_variable, 1, 2, 1,
+                util.opCodes.set_variable, 2,
+                util.opCodes.get_structure, util.lookupIndicator("f", 1), 2,
+                util.opCodes.unify_local_value, 1, 2]},                             // unify_local_value Y2
+        // [util.opCodes.try, 1],                                                   // try 1
+        // [util.opCodes.retry, 1],                                                 // retry 1
+        // [util.opCodes.trust, 1],                                                 // trust 1
+        // util.opCodes.switch_on_term,
+        // util.opCodes.switch_on_constant,
+        // util.opCodes.switch_on_structure
+        // util.opCodes.neck_cut,
+        // util.opCodes.get_level,
+        // util.opCodes.cut,
         [util.opCodes.halt],                                                        // halt
     ];
 }
