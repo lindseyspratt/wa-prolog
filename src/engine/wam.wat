@@ -61,6 +61,14 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     (import "js" "getCodeFromProgram" (func $getCodeFromProgram (param i32) (param i32) (result i32)))
     (import "js" "getCode" (func $getCode (param i32) (result i32)))
     (import "js" "setCode" (func $setCode (param i32)))
+
+    (import "js" "foreign0" (func $foreign (param i32)))
+    (import "js" "foreign1" (func $foreign (param i32) (param i32)))
+    (import "js" "foreign2" (func $foreign (param i32) (param i32) (param i32)))
+    (import "js" "foreign3" (func $foreign (param i32) (param i32) (param i32) (param i32)))
+    (import "js" "foreign4" (func $foreign (param i32) (param i32) (param i32) (param i32) (param i32)))
+    (import "js" "foreign5" (func $foreign (param i32) (param i32) (param i32) (param i32) (param i32) (param i32)))
+
     (import "js" "traceInstLog0" (func $traceInstLog0 (param i32)))
     (import "js" "traceInstLog1" (func $traceInstLog1 (param i32) (param i32)))
     (import "js" "traceInstLog2" (func $traceInstLog2 (param i32) (param i32) (param i32)))
@@ -436,6 +444,26 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
         )
     )
 
+    ;; while tag($list)==TAG_LIS: get store(val($list)), copy to next arg register, set $list to store(val($list)+1).
+    ;; after while loop: if tag($list) != TAG_ATM || val($list) != id('[]'), then throw exception.
+
+    (func $copyListToArgumentRegisters (param $list i32) (result i32)
+        (local $arg i32)
+        (if (i32.ne (call $termTag (local.get $list)) (global.get $TAG_LIS)) ;; assume $list = '[]'
+            (then (return (i32.const 0)))
+        )
+        (local.set $arg (i32.const 0))
+        (block
+            (loop
+                (local.set $arg (i32.add (i32.const 1) (local.get $arg)))
+                (call $storeToRegister (local.get $arg) (call $loadFromHeap (call $termVal (local.get $list))))
+                (local.set $list (call $deref (call $loadFromHeap (i32.add (i32.const 1) (call $termVal (local.get $list))))))
+                (br_if 1 (i32.ne (call $termTag (local.get $list)) (global.get $TAG_LIS)))
+                (br 0)
+            )
+        )
+        (return (local.get $arg)) ;; $arg is the length of the list.
+    )
 
     ;; The 'store' (register or heap cell) address may
     ;; contain a 'structure' term or a 'reference' (variable)
@@ -950,6 +978,45 @@ return search_bucket(val, subtableStart, subsize)
         (return (i32.const 0))
     )
 
+    ;; registers A1= $pred, A2 to An+1 are args 1 to $arity.
+    (func $foreign (param $arity i32)
+        (block
+        (block
+        (block
+        (block
+        (block
+        (block
+            (br_table 0 1 2 3 4 5
+                (local.get $arity)
+            )
+            ) ;; 0
+            (call $foreign0 (call $loadFromRegister (i32.const 1))) ;; foreign(pred).
+            return
+        ) ;; 1
+            (call $foreign1 (call $loadFromRegister (i32.const 1)) (call $loadFromRegister (i32.const 2))) ;; foreign(pred, arg1).
+            return
+        ) ;; 2
+            (call $foreign2 (call $loadFromRegister (i32.const 1))
+                (call $loadFromRegister (i32.const 2)) (call $loadFromRegister (i32.const 3)) ) ;; foreign(pred, arg1, arg2).
+             return
+       ) ;; 3
+            (call $foreign3 (call $loadFromRegister (i32.const 1))
+                (call $loadFromRegister (i32.const 2))
+                (call $loadFromRegister (i32.const 3)) (call $loadFromRegister (i32.const 4)) ) ;; foreign(pred, arg1, arg2, arg3).
+            return
+        ) ;; 4
+            (call $foreign4 (call $loadFromRegister (i32.const 1))
+                (call $loadFromRegister (i32.const 2)) (call $loadFromRegister (i32.const 3))
+                (call $loadFromRegister (i32.const 4)) (call $loadFromRegister (i32.const 5)) ) ;; foreign(pred, arg1, arg2, arg3, arg4).
+            return
+        ) ;; 5
+            (call $foreign5 (call $loadFromRegister (i32.const 1))
+                (call $loadFromRegister (i32.const 2)) (call $loadFromRegister (i32.const 3))
+                (call $loadFromRegister (i32.const 4)) (call $loadFromRegister (i32.const 5))
+                (call $loadFromRegister (i32.const 6)) ) ;; foreign(pred, arg1, arg2, arg3, arg4, arg5).
+            return
+    )
+
     (func $initialize_globals
         (global.set $H (global.get $minHeap)) ;; $H is the current top of the heap.
         (global.set $P (i32.const -1)) ;; $P is the 'program' instruction counter. The instruction is at (call $getCode (global.get $P)).
@@ -1153,11 +1220,12 @@ return search_bucket(val, subtableStart, subsize)
         (block
         (block
         (block
+        (block
             (br_table 0 1 2 3 4 5 6 7 8 9 10
                 11 12 13 14 15 16 17 18 19 20
                 21 22 23 24 25 26 27 28 29 30
                 31 32 33 34 35 36 37 38 39 40
-                41 42 43 44 45 46 47
+                41 42 43 44 45 46 47 48
                 (local.get $op)
             )
             ) ;; 0
@@ -1303,6 +1371,9 @@ return search_bucket(val, subtableStart, subsize)
              return
         ) ;; 47
              (call $op47) ;; $halt
+             return
+        ) ;; 48
+             (call $op48) ;; $call_foreign
              return
  )
 
@@ -1659,6 +1730,11 @@ return search_bucket(val, subtableStart, subsize)
         (call $halt)
     )
 
+    (func $op48 ;; call_foreign
+        (call $traceInst1 (i32.const 48))
+        (call $call_foreign (call $getCodeArg (i32.const 1)))
+    )
+
     (func $putStructure (param $indicator i32) (param $reg i32)
         ;;call $storeStructureAtHeapTop ;; simplified out according to section 5.1.
 
@@ -1800,6 +1876,10 @@ return search_bucket(val, subtableStart, subsize)
                 return
             )
         )
+        (call $callCore (local.get $pred) (local.get $arity))
+    )
+
+    (func $callCore (param $pred) (param $arity)
         (global.set $CP (i32.add (global.get $P) (i32.const 3)))
         (global.set $CPPred (global.get $PPred))
         (call $traceCallB0 (global.get $B))
@@ -1808,6 +1888,63 @@ return search_bucket(val, subtableStart, subsize)
         (global.set $PPred (local.get $pred))
         (global.set $P (i32.const 0))
         (global.set $num_of_args (local.get $arity))
+    )
+
+    ;; call with arity in A1 and pred in AX+1. Arg 1 is shifted to AX+2.
+    ;; other args (N>1) are at AN.
+    ;; Arg 1 is shifted from AX+2 to A1 before calling $callCore.
+
+    (func $callX (param $N i32)
+        (local $predName i32)
+        (local $arity i32)
+        (local.set $arity (call$loadFromRegister (i32.const 1)))
+        (local.set $predName (call $loadFromRegister (i32.add (local.get $arity) (i32.const 2))))
+        (local.set $pred (call $getIndicator (local.get $predName) (local.get $arity)))
+        (if (i32.eq (local.get $pred) (i32.const -1))
+            (then
+                (call $backtrack)
+                return
+            )
+        )
+        (call $storeToRegister (i32.const 1) (call $loadFromRegister (i32.add (local.get $arity) (i32.const 1)))) ;; move pred arg 1 from temp position at reg arity+1 to call position of reg 1 (overwriting the no-longer needed arity because it's copied to local $arity).
+        (call $callCore (local.get $pred) (local.get $arity))
+    )
+
+    ;; call pred in A1 with args in list (on heap) with addr in A2.
+    ;; arity must be calculated from length of arg list in A2.
+
+    (func $callXL (param $N i32)
+        (local $predName i32)
+        (local $arity i32)
+        (local.set $predName (call $loadFromRegister (i32.const 1)))
+        (local.set $arity (call $copyListToArgumentRegisters (call $loadFromRegister (i32.const 2)))) ;; this overwrites pred name that was in A1 with 'true' A1 for call of pred.
+        (local.set $pred (call $getIndicator (local.get $predName) (local.get $arity)))
+        (if (i32.eq (local.get $pred) (i32.const -1))
+            (then
+                (call $backtrack)
+                return
+            )
+        )
+        (call $callCore (local.get $pred) (local.get $arity))
+    )
+
+    (func $call_foreign (param $pred i32)
+        (local $arity i32)
+        (local.set $arity (call $getIndicatorArity (local.get $pred)))
+        (if (i32.eq (local.get $arity) (i32.const -1))
+            (then
+                (call $backtrack)
+                return
+            )
+        )
+        (global.set $CP (i32.add (global.get $P) (i32.const 3)))
+        (global.set $CPPred (global.get $PPred))
+        (call $traceCallB0 (global.get $B))
+        (global.set $B0 (global.get $B))
+
+        ;; $foreign expects arg registers A1 = predindicator, A2...An+1 = args 1 to arity.
+        (call $foreign (local.get $arity))
+        ;; $foreign may set $fail -> true, indicating need for backtracking.
     )
 
     (func $proceed
@@ -2278,12 +2415,10 @@ return search_bucket(val, subtableStart, subsize)
         (global.set $PPred (i32.const -1))
     )
 
-    (export "setH" (func $setH))
-    (export "shiftTag" (func $shiftTag))
+    (export "tagInteger" (func $tagInteger))
     (export "tagStructure" (func $tagStructure))
-    (export "getStructure" (func $getStructure))
-    (export "addToH" (func $addToH))
     (export "bind" (func $bind))
+    (export "unify" (func $unify))
     (export "getInferences" (func $getInferences))
 
     (export "nop_opcode" (func $nop_opcode))

@@ -5,6 +5,7 @@
     "browserify": "14.5.0"
   },
   "scripts": {
-    "build-util": "../../node_modules/.bin/browserify -r ./utilities.wam.js:utilities > ../../build/engine/util.js"
+    "build-util": "../../node_modules/.bin/browserify -r ./node_modules/utilities.js:utilities  > ../../build/engine/util.js",
+    "build-test": "../../node_modules/.bin/browserify -r ./test.js:test  > ../../build/engine/test.js"
   }
 }

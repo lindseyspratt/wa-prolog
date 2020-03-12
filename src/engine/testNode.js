@@ -1,15 +1,12 @@
-//const fsp = require('fs').promises;
+const fsp = require('fs').promises;
 
-//const util = require('./utilities.wam.js');
 const util = require('utilities');
 const testOps = require('testOps');
 
 function testOp() {
 
-//    fsp.readFile('../../build/engine/wam.wasm').then(response =>
-    fetch('../../build/engine/wam.wasm').then(response =>
-        //response.buffer
-        response.arrayBuffer()
+    fsp.readFile('../../build/engine/wam.wasm').then(response =>
+        response.buffer
     ).then(bytes =>
         WebAssembly.instantiate(bytes, util.importObject)
     ).then(obj => {
@@ -28,11 +25,9 @@ function testOp() {
             }
 
             util.log_results( i + ' results', 16, info);
-            util.display_results(i + ' results', 16, info)
         }
     });
 }
 
-module.exports.testOp = testOp;
-//testOp();
+testOp();
 
