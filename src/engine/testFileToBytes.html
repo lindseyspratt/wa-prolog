@@ -1,0 +1,23 @@
+<html lang="">
+<head>
+    <title>Web Assembly Engine Tests</title>
+    <script src="../../build/engine/testFTB.js"></script>
+    <script>
+        let test = require('testFTB');
+        function foo() {
+            test.testFTB();
+        }
+    </script>
+</head>
+<body>
+<div id="tests">
+    <ul>
+        <li><button onclick="foo();">test.testFTB</button></li>
+    </ul>
+</div>
+<div id="display">
+    <ul id="testResults">
+    </ul>
+</div>
+</body>
+</html>

@@ -6,9 +6,7 @@ const testOps = require('testOps');
 
 function testOp() {
 
-//    fsp.readFile('../../build/engine/wam.wasm').then(response =>
     fetch('../../build/engine/wam.wasm').then(response =>
-        //response.buffer
         response.arrayBuffer()
     ).then(bytes =>
         WebAssembly.instantiate(bytes, util.importObject)
@@ -34,5 +32,4 @@ function testOp() {
 }
 
 module.exports.testOp = testOp;
-//testOp();
 

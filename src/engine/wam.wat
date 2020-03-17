@@ -57,17 +57,18 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     (import "js" "heapStart" (global $heapStart i32))
     (import "js" "heapSize" (global $heapSize i32))
     (import "js" "minHeap" (global $minHeap i32))
+    (import "js" "getIndicator" (func $getIndicator (param i32) (param i32) (result i32)))
     (import "js" "getIndicatorArity" (func $getIndicatorArity (param i32) (result i32)))
     (import "js" "getCodeFromProgram" (func $getCodeFromProgram (param i32) (param i32) (result i32)))
     (import "js" "getCode" (func $getCode (param i32) (result i32)))
     (import "js" "setCode" (func $setCode (param i32)))
 
-    (import "js" "foreign0" (func $foreign (param i32)))
-    (import "js" "foreign1" (func $foreign (param i32) (param i32)))
-    (import "js" "foreign2" (func $foreign (param i32) (param i32) (param i32)))
-    (import "js" "foreign3" (func $foreign (param i32) (param i32) (param i32) (param i32)))
-    (import "js" "foreign4" (func $foreign (param i32) (param i32) (param i32) (param i32) (param i32)))
-    (import "js" "foreign5" (func $foreign (param i32) (param i32) (param i32) (param i32) (param i32) (param i32)))
+    (import "js" "foreign0" (func $foreign0 (param i32)))
+    (import "js" "foreign1" (func $foreign1 (param i32) (param i32)))
+    (import "js" "foreign2" (func $foreign2 (param i32) (param i32) (param i32)))
+    (import "js" "foreign3" (func $foreign3 (param i32) (param i32) (param i32) (param i32)))
+    (import "js" "foreign4" (func $foreign4 (param i32) (param i32) (param i32) (param i32) (param i32)))
+    (import "js" "foreign5" (func $foreign5 (param i32) (param i32) (param i32) (param i32) (param i32) (param i32)))
 
     (import "js" "traceInstLog0" (func $traceInstLog0 (param i32)))
     (import "js" "traceInstLog1" (func $traceInstLog1 (param i32) (param i32)))
@@ -89,6 +90,13 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     (import "js" "traceTryB" (func $traceTryB (param i32)))
     (import "js" "traceNeckCutB" (func $traceNeckCutB (param i32)))
     (import "js" "traceCutB" (func $traceCutB (param i32)))
+
+    (import "js" "traceTrailTR" (func $traceTrailTR (param i32)))
+    (import "js" "traceTidyTrailTR" (func $traceTidyTrailTR (param i32)))
+    (import "js" "traceInitializeGlobalsTR" (func $traceInitializeGlobalsTR (param i32)))
+    (import "js" "traceRetryMeElseTR" (func $traceRetryMeElseTR (param i32)))
+    (import "js" "traceTrustMeTR" (func $traceTrustMeTR (param i32)))
+    (import "js" "traceRetryTR" (func $traceRetryTR (param i32)))
 
     (import "js" "warnMaxStack" (func $warnMaxStack (param i32) (param i32)))
     (import "js" "warnMaxTrail" (func $warnMaxTrail (param i32) (param i32)))
@@ -113,6 +121,8 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
     (global $TAG_PRE i32 (i32.const 6)) ;; for PREdicate indicator: an integer identifying Name/Arity, e.g. p/2.
 
     (global $TAG_MASK i32 (i32.const 7))
+    (global $NEG_VALUE_ENCODING_MASK (mut i32) (i32.const 0))
+    (global $NEG_VALUE_CHECK_MASK (mut i32) (i32.const 0))
 
     (func $isCon (param $value i32) (result i32)
         (return
@@ -191,11 +201,7 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
         local.get $tag
         global.get $WORD_BITS
         i32.shl)
-;;    (func $tagInteger (param $val i32) (result i32)
-;;        global.get $TAG_INT
-;;        local.get $val
-;;        call $applyTag
-;;    )
+
     (func $tagStructure (param $val i32) (result i32)
         global.get $TAG_STR
         local.get $val
@@ -211,6 +217,26 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
         local.get $val
         call $applyTag
     )
+
+    (func $negValueEncodingMask (result i32)
+        (i32.sub
+            (i32.shl (i32.const 1) (global.get $WORD_BITS))
+            (i32.const 1))
+    )
+
+    (func $negValueCheckMask (result i32)
+        (i32.shl (i32.const 1)
+            (i32.sub
+                (global.get $WORD_BITS)
+                (i32.const 1)))
+    )
+
+    ;; negative integers require special handling.
+    ;; term = (value & ((1 << WORD_BITS)-1)) ^ (TAG_INT << WORD_BITS)
+    ;; term = applyTag(TAG_INT, (value & ((1 << WORD_BITS)-1)) ) = applyTag(TAG_INT, (value & "0x7FFFFFF"))
+    ;; for above encoding of term: $termTag(term) === TAG_INT
+    ;; The negation flag is the bit at (1 << (WORD_BITS-1)). This is 0x4000000 for WORD_BITS === 27.
+
     (func $tagInteger (param $val i32) (result i32)
         global.get $TAG_INT
         local.get $val
@@ -232,6 +258,11 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
         call $applyTag
     )
     (func $applyTag (param $tag i32) (param $val i32) (result i32)
+        (if (i32.eq (local.get $tag) (global.get $TAG_INT))
+            (then (local.set $val
+                (i32.and (local.get $val) (global.get $NEG_VALUE_ENCODING_MASK))
+            ))
+        )
         local.get $tag
         call $shiftTag
         local.get $val
@@ -243,6 +274,49 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
             (i32.shr_u (local.get $term) (global.get $WORD_BITS))
         )
     )
+
+
+    (func $termValConst (param $tag i32) (param $term i32) (result i32)
+        (if (result i32)
+            (i32.eq (local.get $tag) (global.get $TAG_INT))
+            (then (return (call $termValInt (local.get $term))))
+            (else (return (call $termVal (local.get $term))))
+        )
+    )
+
+    ;; If term represents a negative integer, then $termTag(term) === TAG_INT and
+    ;; ($termVal(term) & (1 << (WORD_BITS-1))) === (1 << (WORD_BITS-1)).
+    ;; That is to say, the negation flag is on in the representation of a negative number.
+    ;; When term represents a negative integer, $termValInt(term) === $termVal(term) - (1 << WORD_BITS).
+
+    (func $termValInt (param $term i32) (result i32)
+        (local $rawValue i32)
+        (local.set $rawValue (call $termVal (local.get $term)))
+        (if (result i32)
+            (i32.eq
+                (i32.and
+                    (local.get $rawValue)
+                    (global.get $NEG_VALUE_CHECK_MASK)
+                )
+                (global.get $NEG_VALUE_CHECK_MASK)
+            )
+            (then
+                (return
+                    (i32.sub
+                        (local.get $rawValue)
+                        (i32.shl
+                            (i32.const 1)
+                            (global.get $WORD_BITS)
+                        )
+                    )
+                )
+            )
+            (else
+                (return (local.get $rawValue))
+            )
+        )
+    )
+
     (func $termVal (param $term i32) (result i32)
         ;; p & ((1 << WORD_BITS)-1);
         (i32.and
@@ -568,12 +642,12 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
         (local.set $term1 (call $loadFromStore (local.get $d1)) )
 
         (local.set $tag1 (call $termTag (local.get $term1)))
-        (local.set $val1 (call $termVal (local.get $term1)))
+        (local.set $val1 (call $termValConst (local.get $tag1) (local.get $term1)))
 
         (local.set $term2 (call $loadFromStore (local.get $d2)) )
 
         (local.set $tag2 (call $termTag (local.get $term2)))
-        (local.set $val2 (call $termVal (local.get $term2)))
+        (local.set $val2 (call $termValConst (local.get $tag2) (local.get $term2)))
 
         (if (result i32)
             (i32.or
@@ -839,6 +913,7 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
             (then
                 (call $storeToTrail (global.get $TR) (local.get $a))
                 (call $addToTR (i32.const 1))
+                (call $traceTrailTR (global.get $TR))
             )
         )
     )
@@ -886,6 +961,7 @@ the current environment (i.e., if E 􏰃 B)." [WAM Tutorial, 99, Ait-Kaci, p.59]
                                 ;; then loop to evaluate this newly swapped item.
                                 (call $storeToTrail (i32.sub (global.get $TR) (i32.const 1)) (local.get $backTR))
                                 (global.set $TR (i32.sub (global.get $TR) (i32.const 1)))
+                                (call $traceTidyTrailTR (global.get $TR))
                             )
                         )
                         (br_if 1 (i32.eq (local.get $backTR) (global.get $TR)))
@@ -978,8 +1054,8 @@ return search_bucket(val, subtableStart, subsize)
         (return (i32.const 0))
     )
 
-    ;; registers A1= $pred, A2 to An+1 are args 1 to $arity.
-    (func $foreign (param $arity i32)
+    ;; registers A1 to An are args 1 to $arity.
+    (func $foreign (param $pred i32) (param $arity i32)
         (block
         (block
         (block
@@ -990,30 +1066,30 @@ return search_bucket(val, subtableStart, subsize)
                 (local.get $arity)
             )
             ) ;; 0
-            (call $foreign0 (call $loadFromRegister (i32.const 1))) ;; foreign(pred).
+            (call $foreign0 (local.get $pred)) ;; foreign(pred).
             return
         ) ;; 1
-            (call $foreign1 (call $loadFromRegister (i32.const 1)) (call $loadFromRegister (i32.const 2))) ;; foreign(pred, arg1).
+            (call $foreign1 (local.get $pred) (call $loadFromRegister (i32.const 1))) ;; foreign(pred, arg1).
             return
         ) ;; 2
-            (call $foreign2 (call $loadFromRegister (i32.const 1))
-                (call $loadFromRegister (i32.const 2)) (call $loadFromRegister (i32.const 3)) ) ;; foreign(pred, arg1, arg2).
+            (call $foreign2 (local.get $pred)
+                (call $loadFromRegister (i32.const 1)) (call $loadFromRegister (i32.const 2)) ) ;; foreign(pred, arg1, arg2).
              return
        ) ;; 3
-            (call $foreign3 (call $loadFromRegister (i32.const 1))
-                (call $loadFromRegister (i32.const 2))
-                (call $loadFromRegister (i32.const 3)) (call $loadFromRegister (i32.const 4)) ) ;; foreign(pred, arg1, arg2, arg3).
+            (call $foreign3 (local.get $pred)
+                (call $loadFromRegister (i32.const 1))
+                (call $loadFromRegister (i32.const 2)) (call $loadFromRegister (i32.const 3)) ) ;; foreign(pred, arg1, arg2, arg3).
             return
         ) ;; 4
-            (call $foreign4 (call $loadFromRegister (i32.const 1))
-                (call $loadFromRegister (i32.const 2)) (call $loadFromRegister (i32.const 3))
-                (call $loadFromRegister (i32.const 4)) (call $loadFromRegister (i32.const 5)) ) ;; foreign(pred, arg1, arg2, arg3, arg4).
+            (call $foreign4 (local.get $pred)
+                (call $loadFromRegister (i32.const 1)) (call $loadFromRegister (i32.const 2))
+                (call $loadFromRegister (i32.const 3)) (call $loadFromRegister (i32.const 4)) ) ;; foreign(pred, arg1, arg2, arg3, arg4).
             return
         ) ;; 5
-            (call $foreign5 (call $loadFromRegister (i32.const 1))
-                (call $loadFromRegister (i32.const 2)) (call $loadFromRegister (i32.const 3))
-                (call $loadFromRegister (i32.const 4)) (call $loadFromRegister (i32.const 5))
-                (call $loadFromRegister (i32.const 6)) ) ;; foreign(pred, arg1, arg2, arg3, arg4, arg5).
+            (call $foreign5 (local.get $pred)
+                (call $loadFromRegister (i32.const 1)) (call $loadFromRegister (i32.const 2))
+                (call $loadFromRegister (i32.const 2)) (call $loadFromRegister (i32.const 4))
+                (call $loadFromRegister (i32.const 5)) ) ;; foreign(pred, arg1, arg2, arg3, arg4, arg5).
             return
     )
 
@@ -1030,10 +1106,14 @@ return search_bucket(val, subtableStart, subsize)
         (global.set $B (i32.const -1)) ;; $B is the base of the current choicepoint frame - $B can never validly be less than or equal to $minStack, so when the backtrack func tries to 'go to' an address less than or equal to $minStack it terminates the WAM.
         (global.set $HB (i32.const -1))
         (global.set $TR (global.get $minTrail))
+        (call $traceInitializeGlobalsTR (global.get $TR))
         (global.set $num_of_args (i32.const -1))
         (global.set $inferences (i32.const 0))
     )
+
     (func $initialize_limits
+        (global.set $NEG_VALUE_ENCODING_MASK (call $negValueEncodingMask))
+        (global.set $NEG_VALUE_CHECK_MASK (call $negValueCheckMask))
         (global.set $maxRegister (i32.add (global.get $minRegister) (global.get $registerSize)))
         (global.set $maxStack (i32.add (global.get $minStack) (global.get $stackSize)))
         (global.set $maxPDL (i32.add (global.get $minPDL) (global.get $pdlSize)))
@@ -1170,6 +1250,7 @@ return search_bucket(val, subtableStart, subsize)
     (func $get_level_opcode (result i32) (i32.const 37))
     (func $cut_opcode (result i32) (i32.const 38))
     (func $halt_opcode (result i32) (i32.const 47))
+    (func $call_foreign_opcode (result i32) (i32.const 48))
 
     (func $evalOp (param $op i32)
         (block
@@ -1722,7 +1803,7 @@ return search_bucket(val, subtableStart, subsize)
     (func $op38 ;; cut
         (call $traceInst1 (i32.const 38))
         (call $cut (call $getCodeArg (i32.const 1)) )
-        (call $addToP (i32.const 3))
+        (call $addToP (i32.const 2))
     )
 
     (func $op47 ;; halt
@@ -1733,6 +1814,10 @@ return search_bucket(val, subtableStart, subsize)
     (func $op48 ;; call_foreign
         (call $traceInst1 (i32.const 48))
         (call $call_foreign (call $getCodeArg (i32.const 1)))
+        (if (global.get $fail)
+            (then (call $backtrack))
+            (else (call $addToP (i32.const 2)))
+        )
     )
 
     (func $putStructure (param $indicator i32) (param $reg i32)
@@ -1879,7 +1964,7 @@ return search_bucket(val, subtableStart, subsize)
         (call $callCore (local.get $pred) (local.get $arity))
     )
 
-    (func $callCore (param $pred) (param $arity)
+    (func $callCore (param $pred i32) (param $arity i32)
         (global.set $CP (i32.add (global.get $P) (i32.const 3)))
         (global.set $CPPred (global.get $PPred))
         (call $traceCallB0 (global.get $B))
@@ -1897,7 +1982,8 @@ return search_bucket(val, subtableStart, subsize)
     (func $callX (param $N i32)
         (local $predName i32)
         (local $arity i32)
-        (local.set $arity (call$loadFromRegister (i32.const 1)))
+        (local $pred i32)
+        (local.set $arity (call $loadFromRegister (i32.const 1)))
         (local.set $predName (call $loadFromRegister (i32.add (local.get $arity) (i32.const 2))))
         (local.set $pred (call $getIndicator (local.get $predName) (local.get $arity)))
         (if (i32.eq (local.get $pred) (i32.const -1))
@@ -1916,6 +2002,7 @@ return search_bucket(val, subtableStart, subsize)
     (func $callXL (param $N i32)
         (local $predName i32)
         (local $arity i32)
+        (local $pred i32)
         (local.set $predName (call $loadFromRegister (i32.const 1)))
         (local.set $arity (call $copyListToArgumentRegisters (call $loadFromRegister (i32.const 2)))) ;; this overwrites pred name that was in A1 with 'true' A1 for call of pred.
         (local.set $pred (call $getIndicator (local.get $predName) (local.get $arity)))
@@ -1942,8 +2029,8 @@ return search_bucket(val, subtableStart, subsize)
         (call $traceCallB0 (global.get $B))
         (global.set $B0 (global.get $B))
 
-        ;; $foreign expects arg registers A1 = predindicator, A2...An+1 = args 1 to arity.
-        (call $foreign (local.get $arity))
+        ;; $foreign expects arg registers A1 ...An = args 1 to arity.
+        (call $foreign (local.get $pred) (local.get $arity))
         ;; $foreign may set $fail -> true, indicating need for backtracking.
     )
 
@@ -2015,6 +2102,7 @@ return search_bucket(val, subtableStart, subsize)
         (local.set $backTR (call $loadFromStack (i32.add (local.get $lastFrameArg) (global.get $BkTR))))
         (call $unwindTrail (local.get $backTR) (global.get $TR) )
         (global.set $TR (local.get $backTR))
+        (call $traceRetryMeElseTR (global.get $TR))
         (global.set $H (call $loadFromStack (i32.add (local.get $lastFrameArg) (global.get $BkH))))
         (global.set $HB (global.get $H))
     )
@@ -2030,6 +2118,7 @@ return search_bucket(val, subtableStart, subsize)
         (local.set $backTR (call $loadFromStack (i32.add (local.get $lastFrameArg) (global.get $BkTR))))
         (call $unwindTrail (local.get $backTR) (global.get $TR) )
         (global.set $TR (local.get $backTR))
+        (call $traceTrustMeTR (global.get $TR))
         (global.set $H (call $loadFromStack (i32.add (local.get $lastFrameArg) (global.get $BkH))))
         (local.set $loadBkB (call $loadFromStack (i32.add (local.get $lastFrameArg) (global.get $BkB))))
         (call $traceTrustMeB (local.get $loadBkB))
@@ -2067,7 +2156,7 @@ return search_bucket(val, subtableStart, subsize)
         (call $get_constant_direct (local.get $t) (local.get $c) (local.get $derefedAddr))
     )
     (func $get_constant_direct (param $t i32) (param $c i32) (param $addr i32)
-        (local $term i32) (local $tag i32)
+        (local $term i32) (local $tag i32) (local $termValue i32)
         (local.set $term (call $loadFromStore (local.get $addr)))
         (local.set $tag (call $termTag (local.get $term)))
         (if (i32.eq (global.get $TAG_REF) (local.get $tag))
@@ -2078,7 +2167,7 @@ return search_bucket(val, subtableStart, subsize)
             (else
                 (if (i32.eq (local.get $t) (local.get $tag))
                     (then
-                        (if (i32.ne (local.get $c) (call $termVal (local.get $term)))
+                        (if (i32.ne (local.get $c) (call $termValConst (local.get $t) (local.get $term)))
                             (then (global.set $fail (global.get $TRUE)))
                             (else (global.set $fail (global.get $FALSE)))
                         )
@@ -2108,6 +2197,13 @@ return search_bucket(val, subtableStart, subsize)
     (func $set_constant (param $t i32) (param $c i32)
         (call $storeConstantAtHeapTop (local.get $t) (local.get $c))
         (call $addToH (i32.const 1))
+    )
+
+    (func $set_constant_result (param $t i32) (param $c i32) (result i32)
+        (local $top i32)
+        (local.set $top (global.get $H))
+        (call $set_constant (local.get $t) (local.get $c))
+        (return (local.get $top))
     )
 
     (func $set_atom (param $c i32)
@@ -2317,6 +2413,7 @@ return search_bucket(val, subtableStart, subsize)
         (local.set $backTR (call $loadFromStack (i32.add (local.get $lastFrameArg) (global.get $BkTR))))
         (call $unwindTrail (local.get $backTR) (global.get $TR) )
         (global.set $TR (local.get $backTR))
+        (call $traceRetryTR (global.get $TR))
         (global.set $H (call $loadFromStack (i32.add (local.get $lastFrameArg) (global.get $BkH))))
         (global.set $HB (global.get $H))
         (global.set $P (local.get $label))
@@ -2364,7 +2461,7 @@ return search_bucket(val, subtableStart, subsize)
         (local $a1Addr i32) (local $term i32) (local $val i32) (local $inst i32)
         (local.set $a1Addr (call $deref (call $tempRegisterAddress (i32.const 1))) ) ;; deref(A1)
         (local.set $term (call $loadFromAddress (local.get $a1Addr)))
-        (local.set $val (call $termVal (local.get $term)))
+        (local.set $val (call $termValConst (call $termTag (local.get $term)) (local.get $term)))
         (local.set $inst (call $get_hash (local.get $val) (local.get $T) (local.get $N))) ;; $inst === 0 -> not found
         (if (i32.eqz (local.get $inst))
             (then (call $backtrack))
@@ -2415,11 +2512,17 @@ return search_bucket(val, subtableStart, subsize)
         (global.set $PPred (i32.const -1))
     )
 
+    (export "termTag" (func $termTag))
+    (export "termVal" (func $termVal))
+    (export "termValInt" (func $termValInt))
+    (export "TAG_ATM" (global $TAG_ATM))
+    (export "TAG_INT" (global $TAG_INT))
     (export "tagInteger" (func $tagInteger))
     (export "tagStructure" (func $tagStructure))
     (export "bind" (func $bind))
-    (export "unify" (func $unify))
+    (export "unifyTerms" (func $unifyTerms))
     (export "getInferences" (func $getInferences))
+    (export "set_constant_result" (func $set_constant_result))
 
     (export "nop_opcode" (func $nop_opcode))
     (export "put_structure_opcode" (func $put_structure_opcode))
@@ -2469,6 +2572,7 @@ return search_bucket(val, subtableStart, subsize)
     (export "get_level_opcode" (func $get_level_opcode))
     (export "cut_opcode" (func $cut_opcode))
     (export "halt_opcode" (func $halt_opcode))
+    (export "call_foreign_opcode" (func $call_foreign_opcode))
 
     (export "run" (func $run))
     (export "runOp" (func $runOp))
